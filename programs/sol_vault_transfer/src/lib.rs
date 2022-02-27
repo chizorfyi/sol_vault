@@ -165,7 +165,7 @@ impl Vault {
 }
 
 #[account]
-#[derive(Default, Debug)]
+// #[derive(Default, Debug)]
 pub struct UserBank {
     pub depositor: Pubkey,
     pub vault_count: u8,
