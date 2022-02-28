@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount, SetAuthority, Token, Transfer};
 use spl_token::instruction::AuthorityType;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+use std::collections::HashSet;
+
+declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 
 #[program]
 pub mod sol_vault_transfer {
@@ -15,13 +15,13 @@ pub mod sol_vault_transfer {
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.depositor = *ctx.accounts.depositor.key;
         user_bank.vault_count = 0;
-        user_bank.user_vaults = HashSet::with_capacity(20);
+        // user_bank.user_vaults = HashSet::with_capacity(20);
         Ok(())
     }
 
     pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u32) -> Result<()> {
         
-        let (pda_account, bump) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
+        let (pda_account, _) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
         token::set_authority(ctx.accounts.into_set_authority_context(), AuthorityType::AccountOwner, Some(pda_account))?;
         
         ctx.accounts.vault.depositor = *ctx.accounts.depositor.key;
@@ -43,7 +43,7 @@ pub mod sol_vault_transfer {
         
         
 
-        let (pda_account, bump) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
+        let (_, bump) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
         let seed_signature = &[&ctx.accounts.depositor.key.as_ref()[..], &[bump]];
 
         token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), ctx.accounts.vault.vault_amount as u64 )?;
@@ -108,8 +108,8 @@ impl<'info> DepositToVault<'info> {
 #[derive(Accounts)]
 pub struct WithdrawFromVault<'info> {
     
-    // #[account(mut)]
-    pub depositor: AccountInfo<'info>,
+    #[account(mut)]
+    pub depositor: UncheckedAccount<'info>,
     
     #[account(mut)]
     pub depositor_token_acct: Account<'info, TokenAccount>,
@@ -171,7 +171,7 @@ pub struct UserBank {
     pub vault_count: u8,
     // pub user_vaults: [VaultDetails; 20],
     // pub user_vaults: HashSet<VaultDetails>,
-    pub user_vaults: HashSet<Pubkey>,
+    pub user_vaults: Vec<Pubkey>,
 }
 
 impl UserBank {
@@ -186,12 +186,14 @@ impl UserBank {
             return;
         }
 
-        self.user_vaults.insert(vault_details);
+        self.user_vaults[self.vault_count as usize] = vault_details;
         self.vault_count.checked_add(1).unwrap();
     }
 
-    fn remove_from_bank (&mut self, key: &Pubkey) -> bool {
-        self.user_vaults.remove(key)
+    fn remove_from_bank (&mut self, key: &Pubkey)  {
+
+        
+
     }
     
 }
