@@ -165,7 +165,7 @@ impl Vault {
 }
 
 #[account]
-// #[derive(Default, Debug)]
+// #[derive(Default)]
 pub struct UserBank {
     pub depositor: Pubkey,
     pub vault_count: u8,
@@ -192,6 +192,19 @@ impl UserBank {
 
     fn remove_from_bank (&mut self, key: &Pubkey)  {
 
+        // let i: usize;
+        // let vault = &mut self.user_vaults;
+
+        // for x in self.user_vaults.iter().enumerate() {
+        //     if x.1 == key {
+        //         self.user_vaults.remove(x.0);
+        //     }
+            
+            
+        // }
+
+        let index = self.user_vaults.iter().position(|x| x == key).unwrap();
+        self.user_vaults.remove(index);
         
 
     }
