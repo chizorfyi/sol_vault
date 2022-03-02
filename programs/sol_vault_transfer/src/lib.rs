@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount, SetAuthority, Token, Transfer};
 use spl_token::instruction::AuthorityType;
 
-use std::collections::HashSet;
+// use std::collections::HashSet;
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 
@@ -15,7 +15,7 @@ pub mod sol_vault_transfer {
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.depositor = *ctx.accounts.depositor.key;
         user_bank.vault_count = 0;
-        // user_bank.user_vaults = HashSet::with_capacity(20);
+        user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
         Ok(())
     }
 
@@ -77,8 +77,10 @@ pub struct DepositToVault<'info> {
     #[account(mut)]
     pub depositor: Signer<'info>,
     
+    #[account(mut)]
     pub depositor_token_acct: Account<'info, TokenAccount>,
     
+    #[account(mut)]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
     #[account(init, payer=depositor, space= 8 + Vault::LEN)]
@@ -86,7 +88,8 @@ pub struct DepositToVault<'info> {
     
     // pub pda_account: AccountInfo<'info>,
     
-    pub user_bank: Account<'info, UserBank>,
+    #[account(mut)]
+    pub user_bank: Box<Account<'info, UserBank>>,
     
     pub token_program: Program<'info, Token>,
     
@@ -192,19 +195,9 @@ impl UserBank {
 
     fn remove_from_bank (&mut self, key: &Pubkey)  {
 
-        // let i: usize;
-        // let vault = &mut self.user_vaults;
-
-        // for x in self.user_vaults.iter().enumerate() {
-        //     if x.1 == key {
-        //         self.user_vaults.remove(x.0);
-        //     }
-            
-            
-        // }
-
         let index = self.user_vaults.iter().position(|x| x == key).unwrap();
         self.user_vaults.remove(index);
+        self.vault_count.checked_sub(1).unwrap();
         
 
     }
