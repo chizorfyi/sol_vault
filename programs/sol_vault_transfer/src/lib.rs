@@ -15,7 +15,7 @@ pub mod sol_vault_transfer {
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.depositor = *ctx.accounts.depositor.key;
         user_bank.vault_count = 0;
-        user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
+        // user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
         Ok(())
     }
 
@@ -89,7 +89,7 @@ pub struct DepositToVault<'info> {
     // pub pda_account: AccountInfo<'info>,
     
     #[account(mut)]
-    pub user_bank: Box<Account<'info, UserBank>>,
+    pub user_bank: Account<'info, UserBank>,
     
     pub token_program: Program<'info, Token>,
     
@@ -189,8 +189,8 @@ impl UserBank {
             return;
         }
 
-        self.user_vaults[self.vault_count as usize] = vault_details;
-        self.vault_count.checked_add(1).unwrap();
+        self.user_vaults.push(vault_details) ;
+        self.vault_count = self.vault_count.checked_add(1).unwrap();
     }
 
     fn remove_from_bank (&mut self, key: &Pubkey)  {

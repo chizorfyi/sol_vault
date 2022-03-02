@@ -192,7 +192,7 @@ describe("sol_vault_transfer", () => {
     console.log("txSix:", txSix);
 
     const user2 = await program.account.userBank.fetch(userBank.publicKey);
-    const vaultInfo = await program.account.userBank.fetch(vault.publicKey);
+    const vaultInfo = await program.account.vault.fetch(vault.publicKey);
 
     console.log("vault info: ", vaultInfo);
 
