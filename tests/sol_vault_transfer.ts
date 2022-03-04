@@ -12,6 +12,7 @@ import {
   mintToChecked,
   transferChecked,
 } from "@solana/spl-token";
+import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
 
 type UserBank = IdlAccounts<SolVaultTransfer>["userBank"];
 type Vault = IdlAccounts<SolVaultTransfer>["vault"];
@@ -175,7 +176,7 @@ describe("sol_vault_transfer", () => {
     console.log("-----------------------------------------");
     console.log("user:", user);
 
-    const txSix = await program.rpc.depositToVault(transfer_amount, {
+    const txSix = await program.rpc.depositToVault(1, {
       accounts: {
         depositor: depositor.publicKey,
         depositorTokenAcct: mainTokenAcct,
@@ -188,14 +189,76 @@ describe("sol_vault_transfer", () => {
       signers: [vault, depositor],
     });
 
+    const vaultTokenInfo = await getAccount(
+      program.provider.connection,
+      pair.publicKey
+    );
+
+    const mainTokenAcctInfo = await getAccount(
+      program.provider.connection,
+      mainTokenAcct
+    );
+
     console.log("-----------------------------------------");
     console.log("txSix:", txSix);
 
     const user2 = await program.account.userBank.fetch(userBank.publicKey);
     const vaultInfo = await program.account.vault.fetch(vault.publicKey);
 
+    console.log("vault token info:", vaultTokenInfo);
+    console.log("main token info:", mainTokenAcctInfo);
+
     console.log("vault info: ", vaultInfo);
 
     console.log("user:", user2);
+
+    const [pdaAccount, bump] = await findProgramAddressSync(
+      [depositor.publicKey.toBuffer()],
+      program.programId
+    );
+
+    console.log("pda account:", pdaAccount);
+
+    // const tx_ = await program.provider.connection.confirmTransaction(
+    //   await program.provider.connection.requestAirdrop(pdaAccount, 100),
+    //   "confirmed"
+    // );
+
+    // console.log("tx_:", tx_);
+
+    const txSeven = await program.rpc.withdrawFromVault({
+      accounts: {
+        depositor: depositor.publicKey,
+        depositorTokenAcct: mainTokenAcct,
+        vaultTokenAcct: vaultTokenAcct,
+        pdaAccount: pdaAccount,
+        vault: vault.publicKey,
+        userBank: userBank.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      },
+    });
+
+    console.log("-----------------------------------------");
+    console.log("txSeven:", txSeven);
+
+    const user3 = await program.account.userBank.fetch(userBank.publicKey);
+    const vaultInfo2 = await program.account.vault.fetch(vault.publicKey);
+
+    const vaultTokenInfo2 = await getAccount(
+      program.provider.connection,
+      pair.publicKey
+    );
+
+    const mainTokenAcctInfo2 = await getAccount(
+      program.provider.connection,
+      mainTokenAcct
+    );
+
+    console.log("vault info: ", vaultInfo2);
+
+    console.log("user:", user3);
+
+    console.log("vault token info:", vaultTokenInfo2);
+    console.log("main token info:", mainTokenAcctInfo2);
   });
 });

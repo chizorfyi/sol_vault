@@ -120,6 +120,7 @@ pub struct WithdrawFromVault<'info> {
     #[account(mut)]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
+    #[account(mut)]
     pub pda_account: AccountInfo<'info>,
     
     #[account(mut, close = depositor)]
