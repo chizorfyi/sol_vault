@@ -97,38 +97,38 @@ describe("sol_vault_transfer", () => {
       token,
       mainTokenAcct,
       mintAuthority,
-      transfer_amount,
+      transfer_amount * 10,
       9
     );
 
     console.log("------------------------------------------------------------");
     console.log("tx two:", txTwo);
 
-    // const txThree = await transferChecked(
-    //   program.provider.connection,
-    //   depositor,
-    //   mainTokenAcct,
-    //   token,
-    //   vaultTokenAcct,
-    //   depositor.publicKey,
-    //   100,
-    //   9
-    // );
+    const txThree = await transferChecked(
+      program.provider.connection,
+      depositor,
+      mainTokenAcct,
+      token,
+      vaultTokenAcct,
+      depositor.publicKey,
+      transfer_amount,
+      9
+    );
 
-    // const vaultTokenInfo = await getAccount(
-    //   program.provider.connection,
-    //   pair.publicKey
-    // );
+    const vaultTokenInfo3 = await getAccount(
+      program.provider.connection,
+      pair.publicKey
+    );
 
-    // const mainTokenAcctInfo = await getAccount(
-    //   program.provider.connection,
-    //   mainTokenAcct
-    // );
+    const mainTokenAcctInfo3 = await getAccount(
+      program.provider.connection,
+      mainTokenAcct
+    );
 
-    // console.log("------------------------------------------------------------");
-    // console.log("tx three:", txThree);
-    // console.log("vault token info:", vaultTokenInfo);
-    // console.log("main token info:", mainTokenAcctInfo);
+    console.log("------------------------------------------------------------");
+    console.log("tx three:", txThree);
+    console.log("vault token info:", vaultTokenInfo3);
+    console.log("main token info:", mainTokenAcctInfo3);
 
     // const txFour = await transferChecked(
     //   program.provider.connection,
@@ -176,7 +176,7 @@ describe("sol_vault_transfer", () => {
     console.log("-----------------------------------------");
     console.log("user:", user);
 
-    const txSix = await program.rpc.depositToVault(1, {
+    const txSix = await program.rpc.depositToVault(transfer_amount, {
       accounts: {
         depositor: depositor.publicKey,
         depositorTokenAcct: mainTokenAcct,
@@ -225,6 +225,27 @@ describe("sol_vault_transfer", () => {
     // );
 
     // console.log("tx_:", tx_);
+    // let balance2 = await program.provider.connection.getBalance(pdaAccount);
+    // console.log("balance_:", balance2);
+
+    // const tx_ = new anchor.web3.Transaction().add(
+    //   anchor.web3.SystemProgram.transfer({
+    //     fromPubkey: depositor.publicKey,
+    //     toPubkey: pdaAccount,
+    //     lamports: anchor.web3.LAMPORTS_PER_SOL * 2,
+    //   })
+    // );
+
+    // const sign_ = await anchor.web3.sendAndConfirmTransaction(
+    //   program.provider.connection,
+    //   tx_,
+    //   [depositor]
+    // );
+
+    // balance2 = await program.provider.connection.getBalance(pdaAccount);
+
+    // console.log("tx_:", sign_);
+    // console.log("balance_:", balance2);
 
     const txSeven = await program.rpc.withdrawFromVault({
       accounts: {
@@ -236,13 +257,14 @@ describe("sol_vault_transfer", () => {
         userBank: userBank.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
       },
+      signers: [depositor],
     });
 
     console.log("-----------------------------------------");
     console.log("txSeven:", txSeven);
 
-    const user3 = await program.account.userBank.fetch(userBank.publicKey);
-    const vaultInfo2 = await program.account.vault.fetch(vault.publicKey);
+    let user3 = await program.account.userBank.fetch(userBank.publicKey);
+    // const vaultInfo2 = await program.account.vault.fetch(vault.publicKey);
 
     const vaultTokenInfo2 = await getAccount(
       program.provider.connection,
@@ -254,7 +276,9 @@ describe("sol_vault_transfer", () => {
       mainTokenAcct
     );
 
-    console.log("vault info: ", vaultInfo2);
+    // console.log("vault info: ", vaultInfo2);
+
+    user3 = await program.account.userBank.fetch(userBank.publicKey);
 
     console.log("user:", user3);
 

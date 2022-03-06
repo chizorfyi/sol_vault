@@ -47,6 +47,7 @@ pub mod sol_vault_transfer {
         let seed_signature = &[&ctx.accounts.depositor.key.as_ref()[..], &[bump]];
 
         token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), ctx.accounts.vault.vault_amount as u64 )?;
+        // token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), 1 as u64 )?;
         
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.remove_from_bank(ctx.accounts.vault.to_account_info().key);
@@ -112,7 +113,7 @@ impl<'info> DepositToVault<'info> {
 pub struct WithdrawFromVault<'info> {
     
     #[account(mut)]
-    pub depositor: UncheckedAccount<'info>,
+    pub depositor: Signer<'info>,
     
     #[account(mut)]
     pub depositor_token_acct: Account<'info, TokenAccount>,
@@ -198,7 +199,7 @@ impl UserBank {
 
         let index = self.user_vaults.iter().position(|x| x == key).unwrap();
         self.user_vaults.remove(index);
-        self.vault_count.checked_sub(1).unwrap();
+        self.vault_count = self.vault_count.checked_sub(1).unwrap();
         
 
     }
