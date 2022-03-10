@@ -1,7 +1,9 @@
 {
     "dependencies": {
         "@project-serum/anchor": "^0.21.0",
-        "@solana/spl-token": "^0.2.0"
+        "@solana/spl-token": "^0.2.0",
+        "bip39": "^3.0.4",
+        "dotenv": "^16.0.0"
     },
     "devDependencies": {
         "@types/mocha": "^9.0.0",

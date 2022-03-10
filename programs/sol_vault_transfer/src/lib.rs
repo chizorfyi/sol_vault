@@ -11,7 +11,7 @@ pub mod sol_vault_transfer {
 
     use super::*;
   
-    pub fn create_user_bank (ctx: Context<CreateUserBank>) -> Result<()> {
+    pub fn create_user_bank (ctx: Context<CreateUserBank>) -> ProgramResult {
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.depositor = *ctx.accounts.depositor.key;
         user_bank.vault_count = 0;
@@ -19,7 +19,7 @@ pub mod sol_vault_transfer {
         Ok(())
     }
 
-    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u32) -> Result<()> {
+    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u32) -> ProgramResult {
         
         let (pda_account, _) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
         token::set_authority(ctx.accounts.into_set_authority_context(), AuthorityType::AccountOwner, Some(pda_account))?;
@@ -39,7 +39,7 @@ pub mod sol_vault_transfer {
         Ok(())
     }
 
-    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault> ) -> Result<()> {
+    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault> ) -> ProgramResult {
         
         
 

@@ -13,6 +13,11 @@ import {
   transferChecked,
 } from "@solana/spl-token";
 import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
+import bip39 from "bip39";
+import * as dotenv from "dotenv";
+dotenv.config();
+import { devpair } from "../keypair";
+import { bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 
 type UserBank = IdlAccounts<SolVaultTransfer>["userBank"];
 type Vault = IdlAccounts<SolVaultTransfer>["vault"];
@@ -28,7 +33,11 @@ describe("sol_vault_transfer", () => {
 
   it("deposits", async () => {
     // Add your test here.
-    const depositor = Keypair.generate();
+    console.log("devpair:", devpair);
+
+    const depositor = Keypair.fromSecretKey(devpair);
+
+    console.log("depositor:", depositor);
 
     const transfer_amount = 100000;
 
@@ -37,20 +46,17 @@ describe("sol_vault_transfer", () => {
     const pair = Keypair.generate();
     const userBank = Keypair.generate();
 
-    const txone = await program.provider.connection.confirmTransaction(
-      await program.provider.connection.requestAirdrop(
-        depositor.publicKey,
-        10000000000
-      ),
-      "confirmed"
-    );
+    // const txone = await program.provider.connection.confirmTransaction(
+    //   await program.provider.connection.requestAirdrop(depositor.publicKey, 1),
+    //   "confirmed"
+    // );
 
     const balance = await program.provider.connection.getBalance(
       depositor.publicKey
     );
 
     console.log("------------------------------------------------------------");
-    console.log("tx one:", txone);
+    // console.log("tx one:", txone);
     console.log("balance:", balance);
 
     const token = await createMint(
