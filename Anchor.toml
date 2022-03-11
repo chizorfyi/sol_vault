@@ -5,7 +5,7 @@ seeds = false
 sol_vault_transfer = "B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS"
 
 [programs.devnet]
-sol_vault_transfer = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+sol_vault_transfer = "B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS"
 
 [registry]
 url = "https://anchor.projectserum.com"

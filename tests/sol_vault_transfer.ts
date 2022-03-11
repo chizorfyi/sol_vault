@@ -1,22 +1,32 @@
 import * as anchor from "@project-serum/anchor";
 import { IdlAccounts, Program } from "@project-serum/anchor";
 import { SolVaultTransfer } from "../target/types/sol_vault_transfer";
-import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
+import {
+  PublicKey,
+  Keypair,
+  SystemProgram,
+  SYSVAR_RENT_PUBKEY,
+} from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   createAccount,
   createAssociatedTokenAccount,
+  getOrCreateAssociatedTokenAccount,
   createMint,
   getAccount,
   getMint,
   mintToChecked,
   transferChecked,
-} from "@solana/spl-token";
+} from "../node_modules/@solana/spl-token";
+// import * as spltoken from "@solana/spl-token";
 import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
-import bip39 from "bip39";
-import * as dotenv from "dotenv";
-dotenv.config();
 import { devpair } from "../keypair";
+import {
+  Cluster,
+  CONTROL_ACCOUNT_SIZE,
+  createProgram,
+  State,
+} from "@zero_one/client";
 import { bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 
 type UserBank = IdlAccounts<SolVaultTransfer>["userBank"];
@@ -26,144 +36,69 @@ describe("sol_vault_transfer", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
+  const zoPid = new PublicKey("Zo1ThtSHMh9tZGECwBDL81WJRL6s3QTHf733Tyko7KQ");
+
+  const zoStateId = new PublicKey(
+    "KwcWW7WvgSXLJcyjKZJBHLbfriErggzYHpjS9qjVD5F"
+  );
+  const usdcMint = new PublicKey(
+    "7UT1javY6X1M9R2UrPGrwcZ78SX3huaXyETff5hm5YdX"
+  );
+
   const program = anchor.workspace
     .SolVaultTransfer as Program<SolVaultTransfer>;
 
-  // let token, depositor, pda_account, mainTokenAcct, vaultTokenAcct;
-
   it("deposits", async () => {
     // Add your test here.
-    console.log("devpair:", devpair);
 
     const depositor = Keypair.fromSecretKey(devpair);
 
-    console.log("depositor:", depositor);
-
-    const transfer_amount = 100000;
-
-    const mintAuthority = Keypair.generate();
+    const rawKeypair = Keypair.generate();
     const vault = Keypair.generate();
-    const pair = Keypair.generate();
+
     const userBank = Keypair.generate();
 
-    // const txone = await program.provider.connection.confirmTransaction(
-    //   await program.provider.connection.requestAirdrop(depositor.publicKey, 1),
-    //   "confirmed"
-    // );
+    const provider = program.provider;
 
-    const balance = await program.provider.connection.getBalance(
+    console.log("depositor pubkey:", depositor.publicKey);
+
+    const zoProgram = createProgram(provider, Cluster.Devnet);
+
+    console.log("zo program:", zoProgram);
+
+    console.log("---------------------------------------");
+
+    const zoState = await State.load(zoProgram, zoStateId);
+    console.log("zo state:", zoState);
+
+    console.log("---------------------------------------");
+
+    const zoUsdcVault = zoState.getVaultCollateralByMint(usdcMint)[0];
+
+    console.log("---------------------------");
+    console.log("zo usdc vault:", zoUsdcVault);
+
+    const depUsdc = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      depositor,
+      usdcMint,
       depositor.publicKey
     );
 
-    console.log("------------------------------------------------------------");
-    // console.log("tx one:", txone);
-    console.log("balance:", balance);
-
-    const token = await createMint(
-      program.provider.connection,
+    const vaultUsdc = await createAccount(
+      provider.connection,
       depositor,
-      mintAuthority.publicKey,
-      null,
-      9
-    );
-
-    console.log("------------------------------------------------------------");
-    console.log("token:", token);
-
-    let mintAccountInfo = await getMint(program.provider.connection, token);
-
-    console.log("------------------------------------------------------------");
-    console.log("token info:", mintAccountInfo);
-
-    const mainTokenAcct = await createAssociatedTokenAccount(
-      program.provider.connection,
-      depositor,
-      token,
-      depositor.publicKey
-    );
-
-    console.log("------------------------------------------------------------");
-    console.log("mainTokenAccount:", mainTokenAcct);
-
-    const vaultTokenAcct = await createAccount(
-      program.provider.connection,
-      depositor,
-      token,
+      usdcMint,
       depositor.publicKey,
-      pair
+      rawKeypair
     );
 
-    console.log("------------------------------------------------------------");
-    console.log("vaultTokenAccount:", vaultTokenAcct);
-    console.log("pair:", pair.publicKey);
+    const depUsdcAcct = await getAccount(provider.connection, depUsdc.address);
+    const vaultUsdcAcct = await getAccount(provider.connection, vaultUsdc);
 
-    const txTwo = await mintToChecked(
-      program.provider.connection,
-      depositor,
-      token,
-      mainTokenAcct,
-      mintAuthority,
-      transfer_amount * 10,
-      9
-    );
-
-    console.log("------------------------------------------------------------");
-    console.log("tx two:", txTwo);
-
-    const txThree = await transferChecked(
-      program.provider.connection,
-      depositor,
-      mainTokenAcct,
-      token,
-      vaultTokenAcct,
-      depositor.publicKey,
-      transfer_amount,
-      9
-    );
-
-    const vaultTokenInfo3 = await getAccount(
-      program.provider.connection,
-      pair.publicKey
-    );
-
-    const mainTokenAcctInfo3 = await getAccount(
-      program.provider.connection,
-      mainTokenAcct
-    );
-
-    console.log("------------------------------------------------------------");
-    console.log("tx three:", txThree);
-    console.log("vault token info:", vaultTokenInfo3);
-    console.log("main token info:", mainTokenAcctInfo3);
-
-    // const txFour = await transferChecked(
-    //   program.provider.connection,
-    //   depositor,
-    //   vaultTokenAcct,
-    //   token,
-    //   mainTokenAcct,
-    //   depositor.publicKey,
-    //   1,
-    //   9
-    // );
-
-    // const vaultTokenInfo2 = await getAccount(
-    //   program.provider.connection,
-    //   pair.publicKey
-    // );
-
-    // const mainTokenAcctInfo2 = await getAccount(
-    //   program.provider.connection,
-    //   mainTokenAcct
-    // );
-
-    // console.log("------------------------------------------------------------");
-    // console.log("tx three:", txFour);
-    // console.log("vault token info:", vaultTokenInfo2);
-    // console.log("main token info:", mainTokenAcctInfo2);
-
-    // const tx = await program.rpc.initialize({});
-    // console.log("Your transaction signature", tx);
+    console.log("---------------------------------------");
+    console.log("depositor usdc acct:", depUsdcAcct);
+    console.log("vault usdc acct:", vaultUsdcAcct);
 
     const txFive = await program.rpc.createUserBank({
       accounts: {
@@ -174,19 +109,14 @@ describe("sol_vault_transfer", () => {
       signers: [depositor, userBank],
     });
 
-    console.log("-----------------------------------------");
+    console.log("===========================================");
     console.log("tx five:", txFive);
 
-    const user = await program.account.userBank.fetch(userBank.publicKey);
-
-    console.log("-----------------------------------------");
-    console.log("user:", user);
-
-    const txSix = await program.rpc.depositToVault(transfer_amount, {
+    const txSix = await program.rpc.depositToVault(new anchor.BN("500"), {
       accounts: {
         depositor: depositor.publicKey,
-        depositorTokenAcct: mainTokenAcct,
-        vaultTokenAcct: vaultTokenAcct,
+        depositorTokenAcct: depUsdc.address,
+        vaultTokenAcct: vaultUsdc,
         vault: vault.publicKey,
         userBank: userBank.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -195,100 +125,72 @@ describe("sol_vault_transfer", () => {
       signers: [vault, depositor],
     });
 
-    const vaultTokenInfo = await getAccount(
-      program.provider.connection,
-      pair.publicKey
-    );
-
-    const mainTokenAcctInfo = await getAccount(
-      program.provider.connection,
-      mainTokenAcct
-    );
-
-    console.log("-----------------------------------------");
-    console.log("txSix:", txSix);
-
-    const user2 = await program.account.userBank.fetch(userBank.publicKey);
-    const vaultInfo = await program.account.vault.fetch(vault.publicKey);
-
-    console.log("vault token info:", vaultTokenInfo);
-    console.log("main token info:", mainTokenAcctInfo);
-
-    console.log("vault info: ", vaultInfo);
-
-    console.log("user:", user2);
-
     const [pdaAccount, bump] = await findProgramAddressSync(
       [depositor.publicKey.toBuffer()],
       program.programId
     );
 
-    console.log("pda account:", pdaAccount);
+    console.log("===========================================");
+    console.log("tx five:", txFive);
+    console.log("pda:", pdaAccount);
 
-    // const tx_ = await program.provider.connection.confirmTransaction(
-    //   await program.provider.connection.requestAirdrop(pdaAccount, 100),
-    //   "confirmed"
-    // );
+    const some = bs58.decode(pdaAccount.toString());
+    //create Margin
 
-    // console.log("tx_:", tx_);
-    // let balance2 = await program.provider.connection.getBalance(pdaAccount);
-    // console.log("balance_:", balance2);
+    const [[key, nonce], control, controlLamports] = await Promise.all([
+      PublicKey.findProgramAddress(
+        [
+          pdaAccount.toBuffer(),
+          zoState.pubkey.toBuffer(),
+          Buffer.from("marginv1"),
+        ],
+        zoProgram.programId
+      ),
+      Keypair.generate(),
+      provider.connection.getMinimumBalanceForRentExemption(
+        CONTROL_ACCOUNT_SIZE
+      ),
+    ]);
 
-    // const tx_ = new anchor.web3.Transaction().add(
-    //   anchor.web3.SystemProgram.transfer({
-    //     fromPubkey: depositor.publicKey,
-    //     toPubkey: pdaAccount,
-    //     lamports: anchor.web3.LAMPORTS_PER_SOL * 2,
-    //   })
-    // );
+    console.log("======================================");
+    console.log("key:", key);
 
-    // const sign_ = await anchor.web3.sendAndConfirmTransaction(
-    //   program.provider.connection,
-    //   tx_,
-    //   [depositor]
-    // );
+    if (await program.provider.connection.getAccountInfo(key)) {
+      console.log("Margin account already exists");
+    } else {
+      //calling CreateMaergin through CPI call
+      const tx = await program.rpc.createZoMargin(nonce, {
+        accounts: {
+          authority: depositor,
+          zoProgramState: zoState.pubkey,
+          zoMargin: key,
+          zoProgram: zoPid,
+          control: control.publicKey,
+          rent: SYSVAR_RENT_PUBKEY,
+          systemProgram: SystemProgram.programId,
+        },
+        preInstructions: [
+          SystemProgram.createAccount({
+            fromPubkey: pdaAccount,
+            newAccountPubkey: control.publicKey,
+            lamports: controlLamports,
+            space: CONTROL_ACCOUNT_SIZE,
+            programId: zoProgram.programId,
+          }),
+        ],
+        signers: [control, depositor],
+      });
 
-    // balance2 = await program.provider.connection.getBalance(pdaAccount);
+      const txTwo = await provider.connection.confirmTransaction(
+        tx,
+        "finalized"
+      );
 
-    // console.log("tx_:", sign_);
-    // console.log("balance_:", balance2);
+      console.log("tx two:", txTwo);
+    }
 
-    const txSeven = await program.rpc.withdrawFromVault({
-      accounts: {
-        depositor: depositor.publicKey,
-        depositorTokenAcct: mainTokenAcct,
-        vaultTokenAcct: vaultTokenAcct,
-        pdaAccount: pdaAccount,
-        vault: vault.publicKey,
-        userBank: userBank.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      },
-      signers: [depositor],
-    });
+    //
 
-    console.log("-----------------------------------------");
-    console.log("txSeven:", txSeven);
-
-    let user3 = await program.account.userBank.fetch(userBank.publicKey);
-    // const vaultInfo2 = await program.account.vault.fetch(vault.publicKey);
-
-    const vaultTokenInfo2 = await getAccount(
-      program.provider.connection,
-      pair.publicKey
-    );
-
-    const mainTokenAcctInfo2 = await getAccount(
-      program.provider.connection,
-      mainTokenAcct
-    );
-
-    // console.log("vault info: ", vaultInfo2);
-
-    user3 = await program.account.userBank.fetch(userBank.publicKey);
-
-    console.log("user:", user3);
-
-    console.log("vault token info:", vaultTokenInfo2);
-    console.log("main token info:", mainTokenAcctInfo2);
+    //
   });
 });

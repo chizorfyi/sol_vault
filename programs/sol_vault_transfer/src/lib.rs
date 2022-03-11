@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount, SetAuthority, Token, Transfer};
 use spl_token::instruction::AuthorityType;
-
+use zo::{self, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw} };
 // use std::collections::HashSet;
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
@@ -11,15 +11,15 @@ pub mod sol_vault_transfer {
 
     use super::*;
   
-    pub fn create_user_bank (ctx: Context<CreateUserBank>) -> ProgramResult {
+    pub fn create_user_bank (ctx: Context<CreateUserBank>) -> Result<()> {
         let user_bank = &mut ctx.accounts.user_bank;
         user_bank.depositor = *ctx.accounts.depositor.key;
         user_bank.vault_count = 0;
-        // user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
+        user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
         Ok(())
     }
 
-    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u32) -> ProgramResult {
+    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {
         
         let (pda_account, _) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
         token::set_authority(ctx.accounts.into_set_authority_context(), AuthorityType::AccountOwner, Some(pda_account))?;
@@ -39,7 +39,7 @@ pub mod sol_vault_transfer {
         Ok(())
     }
 
-    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault> ) -> ProgramResult {
+    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault> ) -> Result<()> {
         
         
 
@@ -56,6 +56,26 @@ pub mod sol_vault_transfer {
 
         
     }
+
+    pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {
+        
+        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;
+        
+        Ok(())
+
+    }
+    
+    pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {
+        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), false , amount)?;
+        Ok(())
+    }
+    
+    pub fn zo_withdrawal (ctx: Context<ZoWithdrawal>, amount: u64) -> Result<()> {
+        zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context(), false ,amount)?;
+        Ok(())
+    }
+    
+
 
 }
 
@@ -121,6 +141,7 @@ pub struct WithdrawFromVault<'info> {
     #[account(mut)]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
+    /// CHECK: PDA Account
     #[account(mut)]
     pub pda_account: AccountInfo<'info>,
     
@@ -147,6 +168,143 @@ impl<'info> WithdrawFromVault<'info> {
     }
 }
 
+#[derive(Accounts)]
+#[instruction(zo_margin_nonce: u8)]
+pub struct CreateZoMargin<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    #[account(mut)]
+    pub zo_program_state: AccountLoader<'info, State>,
+    
+    #[account(mut)]
+    pub zo_margin: AccountLoader<'info, Margin>,
+    
+    pub zo_program: Program<'info, Zo>,
+    
+    #[account(mut)]
+    pub control: AccountLoader<'info, Control>,
+    
+    pub rent: Sysvar<'info, Rent>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+impl <'info> CreateZoMargin <'info> {
+    fn into_create_zo_margin_context(&self) -> CpiContext<'_, '_, '_, 'info, CreateMargin<'info>> {
+        let cpi_program = self.zo_program.to_account_info();
+        let cpi_accounts = zo::cpi::accounts::CreateMargin {
+            state: self.zo_program_state.to_account_info(),
+            payer: self.authority.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.zo_margin.to_account_info(),
+            control: self.control.to_account_info(),
+            rent: self.rent.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+#[derive(Accounts)]
+#[instruction(amount: u64)]
+pub struct ZoDeposit<'info> {
+    #[account(mut)]
+    
+    pub authority: Signer<'info>,
+    
+    pub zo_program_state: AccountLoader<'info, State>,
+    
+    #[account(mut)]
+    pub zo_program_margin: AccountLoader<'info, Margin>,
+    
+    pub zo_program: Program<'info, Zo>,
+    
+    ///CHECK: State Signer
+    pub state_signer: UncheckedAccount<'info>,
+    
+    #[account(mut)]
+    pub cache: AccountLoader<'info, Cache>,
+    
+    #[account(mut)]
+    pub token_account: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub zo_program_vault: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+impl <'info> ZoDeposit <'info> {
+    fn into_zo_deposit_context(&self) -> CpiContext<'_, '_, '_, 'info, Deposit<'info>> {
+        let cpi_program = self.zo_program.to_account_info();
+        let cpi_accounts = Deposit {
+             state: self.zo_program_state.to_account_info(),
+            state_signer: self.state_signer.to_account_info(),
+            cache: self.cache.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.zo_program_margin.to_account_info(),
+            token_account: self.token_account.to_account_info(),
+            vault: self.zo_program_vault.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+#[derive(Accounts)]
+#[instruction(amount: u64)]
+pub struct ZoWithdrawal<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    #[account(mut)]
+    pub zo_program_state: AccountLoader<'info, State>,
+    
+    #[account(mut)]
+    pub zo_program_margin: AccountLoader<'info, Margin>,
+    
+    pub zo_program: Program<'info, Zo>,
+    
+    ///CHECK: State Signer
+    #[account(mut)]
+    pub state_signer: UncheckedAccount<'info>,
+    
+    #[account(mut)]
+    pub cache: AccountLoader<'info, Cache>,
+    
+    #[account(mut)]
+    pub control: AccountLoader<'info, Control>,
+    
+    #[account(mut)]
+    pub token_account: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub zo_program_vault: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+impl <'info> ZoWithdrawal <'info> {
+    fn into_zo_withdrawal_context(&self) -> CpiContext<'_, '_, '_, 'info, ZoWithdraw<'info>> {
+        let cpi_program = self.zo_program.to_account_info();
+        let cpi_accounts =  ZoWithdraw {
+            state: self.zo_program_state.to_account_info(),
+            state_signer: self.state_signer.to_account_info(),
+            cache: self.cache.to_account_info(),
+            control: self.control.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.zo_program_margin.to_account_info(),
+            token_account: self.token_account.to_account_info(),
+            vault: self.zo_program_vault.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
 
 #[account]
 pub struct Vault {
@@ -162,11 +320,11 @@ pub struct Vault {
     
     pub pda_account: Pubkey,
 
-    pub vault_amount: u32,
+    pub vault_amount: u64,
 }
 
 impl Vault {
-    pub const LEN: usize = 32 + 32 + 32 + 32 + 32;
+    pub const LEN: usize = 64 + 32 + 32 + 32 + 32;
 }
 
 #[account]
@@ -212,3 +370,4 @@ impl UserBank {
 //     pub depositor: Pubkey,
 //     pub vault_pubkey: Pubkey,
 // }
+
