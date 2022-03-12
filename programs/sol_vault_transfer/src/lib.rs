@@ -1,8 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{TokenAccount, Token};
-// use spl_token::instruction::AuthorityType;
-use zo::{self, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw} };
-// use std::collections::HashSet;
+use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 
@@ -10,52 +8,6 @@ declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 pub mod sol_vault_transfer {
 
     use super::*;
-  
-    // pub fn create_user_bank (ctx: Context<CreateUserBank>) -> Result<()> {
-    //     let user_bank = &mut ctx.accounts.user_bank;
-    //     user_bank.depositor = *ctx.accounts.depositor.key;
-    //     user_bank.vault_count = 0;
-    //     user_bank.user_vaults = Vec::<Pubkey>::with_capacity(20);
-    //     Ok(())
-    // }
-
-    // pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {
-        
-    //     let (pda_account, _) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
-    //     token::set_authority(ctx.accounts.into_set_authority_context(), AuthorityType::AccountOwner, Some(pda_account))?;
-        
-    //     ctx.accounts.vault.depositor = *ctx.accounts.depositor.key;
-    //     ctx.accounts.vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
-    //     ctx.accounts.vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
-    //     ctx.accounts.vault.vault_amount = transfer_amount;
-    //     ctx.accounts.vault.pda_account = pda_account;
-
-    //     // ctx.accounts.user_bank.add_to_bank(VaultDetails { 
-    //     //     depositor: *ctx.accounts.depositor.key, 
-    //     //     vault_pubkey: *ctx.accounts.vault.to_account_info().key, 
-    //     // });
-    //     ctx.accounts.user_bank.add_to_bank(*ctx.accounts.vault.to_account_info().key);
-
-    //     Ok(())
-    // }
-
-    // pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault> ) -> Result<()> {
-        
-        
-
-    //     let (_, bump) = Pubkey::find_program_address(&[ctx.accounts.depositor.key.as_ref()], ctx.program_id);
-    //     let seed_signature = &[&ctx.accounts.depositor.key.as_ref()[..], &[bump]];
-
-    //     token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), ctx.accounts.vault.vault_amount as u64 )?;
-    //     // token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), 1 as u64 )?;
-        
-    //     let user_bank = &mut ctx.accounts.user_bank;
-    //     user_bank.remove_from_bank(ctx.accounts.vault.to_account_info().key);
-        
-    //     Ok(())
-
-        
-    // }
 
     pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {
         
@@ -75,6 +27,26 @@ pub mod sol_vault_transfer {
         Ok(())
     }
     
+    pub fn create_zo_perp_order (ctx: Context<CreateZoPerpOpenOrders>) -> Result<()> {
+        zo::cpi::create_perp_open_orders(ctx.accounts.into_create_zo_perp_order_context())?;
+        Ok(())
+    }
+    
+    
+    pub fn place_zo_perp_order (ctx: Context<PlaceZoPerpOrder>, is_long: bool, limit_price: u64, max_base_quantity:u64, max_quote_quantity:u64, order_type: zo::OrderType, limit: u16, client_id: u64) -> Result<()> {
+        zo::cpi::place_perp_order(ctx.accounts.into_place_zo_perp_order_context(), is_long, limit_price, max_base_quantity, max_quote_quantity, order_type, limit, client_id)?;
+        Ok(())
+    }
+    
+    pub fn cancel_zo_perp_order (ctx: Context<CancelZoPerpOrder>, order_id: Option<u128>, is_long: Option<bool>, client_id: Option<u64>) -> Result<()> {
+        zo::cpi::cancel_perp_order(ctx.accounts.into_cancel_zo_perp_order_context(), order_id, is_long, client_id)?;
+        Ok(())
+    }
+    
+    pub fn cancel_all_zo_perp_order (ctx: Context<CancelAllZoPerpOrders>, limit: u16) -> Result<()> {
+        zo::cpi::cancel_all_perp_orders(ctx.accounts.into_cancel_all_zo_perp_orders_context() , limit)?;
+        Ok(())
+    }
 
 
 }
@@ -89,13 +61,13 @@ pub struct CreateZoMargin<'info> {
     #[account(mut)]
     pub zo_program_state: AccountLoader<'info, State>,
     
-    ///CHECK: just test
+    ///CHECK: uninitialized
     #[account(mut)]
     pub zo_margin: UncheckedAccount<'info>,
     
     pub zo_program: Program<'info, Zo>,
     
-    ///CHECK: just test
+    ///CHECK: uninitialized
     #[account(mut)]
     pub control: UncheckedAccount<'info>,
     
@@ -220,156 +192,270 @@ impl <'info> ZoWithdrawal <'info> {
     }
 }
 
-// #[derive(Accounts)]
-// pub struct CreateUserBank <'info> {
+#[derive(Accounts)]
+pub struct CreateZoPerpOpenOrders<'info> {
     
-//     #[account(init, payer=depositor, space= 8 + UserBank::LEN)]
-//     pub user_bank: Account<'info, UserBank>,
+    pub state: AccountLoader<'info, State>,
     
-//     #[account(mut)]
-//     pub depositor: Signer<'info>,
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub state_signer: UncheckedAccount<'info>,
     
-//     pub system_program: Program<'info, System>,
-// }
-
-
-// #[derive(Accounts)]
-// pub struct DepositToVault<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
     
-//     #[account(mut)]
-//     pub depositor: Signer<'info>,
+    #[account(mut)]
+    pub margin: AccountLoader<'info, Margin>,
     
-//     #[account(mut)]
-//     pub depositor_token_acct: Account<'info, TokenAccount>,
-    
-//     #[account(mut)]
-//     pub vault_token_acct: Account<'info, TokenAccount>,
-    
-//     #[account(init, payer=depositor, space= 8 + Vault::LEN)]
-//     pub vault: Account<'info, Vault>,
-    
-//     // pub pda_account: AccountInfo<'info>,
-    
-//     #[account(mut)]
-//     pub user_bank: Account<'info, UserBank>,
-    
-//     pub token_program: Program<'info, Token>,
-    
-//     pub system_program: Program<'info, System>,
-// }
-
-// impl<'info> DepositToVault<'info> {
-//     fn into_set_authority_context(&self) -> CpiContext<'_, '_, '_, 'info, SetAuthority<'info>> {
-//         let cpi_accounts = SetAuthority {
-//             account_or_mint: self.vault_token_acct.to_account_info().clone(),
-//             current_authority: self.depositor.to_account_info().clone(),
-//         };
-//         let cpi_program = self.token_program.to_account_info();
-//         CpiContext::new(cpi_program, cpi_accounts)
-//     }
-// }
-
-// //Withdraw from vault
-// #[derive(Accounts)]
-// pub struct WithdrawFromVault<'info> {
-    
-//     #[account(mut)]
-//     pub depositor: Signer<'info>,
-    
-//     #[account(mut)]
-//     pub depositor_token_acct: Account<'info, TokenAccount>,
-    
-//     #[account(mut)]
-//     pub vault_token_acct: Account<'info, TokenAccount>,
-    
-//     /// CHECK: PDA Account
-//     #[account(mut)]
-//     pub pda_account: AccountInfo<'info>,
-    
-//     #[account(mut, close = depositor)]
-//     pub vault: Account<'info, Vault>,
-    
-//     #[account(mut)]
-//     pub user_bank: Account<'info, UserBank>,
-    
-//     pub token_program: Program<'info, Token>,
-    
-//     // pub system_program: Program<'info, System>,
-// }
-
-// impl<'info> WithdrawFromVault<'info> {
-//     fn into_withdraw_from_vault_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
-//         let cpi_accounts = Transfer {
-//             from: self.vault_token_acct.to_account_info().clone(),
-//             to: self.depositor_token_acct.to_account_info().clone(),
-//             authority: self.pda_account.clone(),
-//         };
-//         let cpi_program = self.token_program.to_account_info();
-//         CpiContext::new(cpi_program, cpi_accounts)
-//     }
-// }
-// #[account]
-// pub struct Vault {
-    
-//     //the depositor public key
-//     pub depositor: Pubkey, 
-    
-//     // depositor token account
-//     pub depositor_token_account: Pubkey, 
-    
-//     // depositor token account to transfer authority to pda
-//     pub vault_token_account: Pubkey, 
-    
-//     pub pda_account: Pubkey,
-
-//     pub vault_amount: u64,
-// }
-
-// impl Vault {
-//     pub const LEN: usize = 64 + 32 + 32 + 32 + 32;
-// }
-
-// #[account]
-// // #[derive(Default)]
-// pub struct UserBank {
-//     pub depositor: Pubkey,
-//     pub vault_count: u8,
-//     // pub user_vaults: [VaultDetails; 20],
-//     // pub user_vaults: HashSet<VaultDetails>,
-//     pub user_vaults: Vec<Pubkey>,
-// }
-
-// impl UserBank {
-
-//       pub const LEN: usize = (32 * 20) //user_vaults 
-//       + 32 // depositor_pubkey 
-//       + 8; // vault_count
-
-//     fn add_to_bank (&mut self, vault_details: Pubkey) {
-       
-//         if self.vault_count >= 20 {
-//             return;
-//         }
-
-//         self.user_vaults.push(vault_details) ;
-//         self.vault_count = self.vault_count.checked_add(1).unwrap();
-//     }
-
-//     fn remove_from_bank (&mut self, key: &Pubkey)  {
-
-//         let index = self.user_vaults.iter().position(|x| x == key).unwrap();
-//         self.user_vaults.remove(index);
-//         self.vault_count = self.vault_count.checked_sub(1).unwrap();
+    #[account(mut)]
+    pub control: AccountLoader<'info, Control>,
         
-
-//     }
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub open_orders: UncheckedAccount<'info>,
     
-// }
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub dex_market: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    pub dex_program: UncheckedAccount<'info>,
+    
+    pub rent: Sysvar<'info, Rent>,
+    
+    pub system_program: Program<'info, System>,
+}
 
-// #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]  
-// // #[zero_copy]
-// pub struct VaultDetails {
-//     pub depositor: Pubkey,
-//     pub vault_pubkey: Pubkey,
-// }
+impl <'info> CreateZoPerpOpenOrders <'info> {
+    fn into_create_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, CreatePerpOpenOrders<'info>> {
+        let cpi_program = self.dex_program.to_account_info();
+        let cpi_accounts =  CreatePerpOpenOrders {
+            state: self.state.to_account_info(),
+            state_signer: self.state_signer.to_account_info(),
+            control: self.control.to_account_info(),
+            authority: self.authority.to_account_info(),
+            payer: self.authority.to_account_info(),
+            margin: self.margin.to_account_info(),
+            rent: self.rent.to_account_info(),
+            open_orders: self.open_orders.to_account_info(),
+            system_program: self.system_program.to_account_info(),
+            dex_market: self.dex_market.to_account_info(),
+            dex_program: self.dex_program.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
 
+#[derive(Accounts)]
+pub struct PlaceZoPerpOrder<'info> {
+    
+    ///CHECK: unchecked
+    pub state: AccountInfo<'info>,
+    #[account(mut)]
+    
+    ///CHECK: unchecked
+    pub state_signer: AccountInfo<'info>,
+    #[account(mut)]
+    
+    ///CHECK: unchecked
+    pub cache: AccountInfo<'info>,
+    
+    pub authority: Signer<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub margin: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub control: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub open_orders: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub dex_market: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub req_q: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub event_q: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_bids: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_asks: AccountInfo<'info>,
+    
+    ///CHECK: unchecked
+    #[account(address = ZO_DEX_PID)]
+    pub dex_program: AccountInfo<'info>,
+    
+    pub rent: Sysvar<'info, Rent>,
+}
+
+impl <'info> PlaceZoPerpOrder <'info> {
+    fn into_place_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, PlacePerpOrder<'info>> {
+        let cpi_program = self.dex_program.to_account_info();
+        let cpi_accounts =  PlacePerpOrder {
+            state: self.state.to_account_info(),
+            state_signer: self.state_signer.to_account_info(),
+            control: self.control.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.margin.to_account_info(),
+            rent: self.rent.to_account_info(),
+            open_orders: self.open_orders.to_account_info(),
+            dex_market: self.dex_market.to_account_info(),
+            dex_program: self.dex_program.to_account_info(),
+            cache: self.cache.to_account_info(),
+            req_q: self.req_q.to_account_info(),
+            event_q: self.event_q.to_account_info(),
+            market_bids: self.market_bids.to_account_info(),
+            market_asks: self.market_asks.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+
+#[derive(Accounts)]
+pub struct CancelZoPerpOrder<'info> {
+    
+    pub state: AccountLoader<'info, State>,
+    
+    #[account(mut)]
+    pub cache: AccountLoader<'info, Cache>,
+    
+    pub authority: Signer<'info>,
+    
+    #[account(mut)]
+    pub margin: AccountLoader<'info, Margin>,
+    
+    #[account(mut)]
+    pub control: AccountLoader<'info, Control>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub open_orders: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub dex_market: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_bids: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_asks: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub event_q: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    pub dex_program: UncheckedAccount<'info>,
+}
+
+impl <'info> CancelZoPerpOrder <'info> {
+    fn into_cancel_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, CancelPerpOrder<'info>> {
+        let cpi_program = self.dex_program.to_account_info();
+        let cpi_accounts =  CancelPerpOrder {
+            state: self.state.to_account_info(),
+            control: self.control.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.margin.to_account_info(),
+            open_orders: self.open_orders.to_account_info(),
+            dex_market: self.dex_market.to_account_info(),
+            dex_program: self.dex_program.to_account_info(),
+            cache: self.cache.to_account_info(),
+            event_q: self.event_q.to_account_info(),
+            market_bids: self.market_bids.to_account_info(),
+            market_asks: self.market_asks.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+
+#[derive(Accounts)]
+pub struct CancelAllZoPerpOrders<'info> {
+    
+    pub authority: Signer<'info>,
+    
+    pub state: AccountLoader<'info, State>,
+    
+    #[account(mut)]
+    pub cache: AccountLoader<'info, Cache>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub state_signer: UncheckedAccount<'info>,
+    
+    #[account(mut)]
+    pub margin: AccountLoader<'info, Margin>,
+    
+    #[account(mut)]
+    pub control: AccountLoader<'info, Control>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub open_orders: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub dex_market: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub req_q: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub event_q: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_bids: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    #[account(mut)]
+    pub market_asks: UncheckedAccount<'info>,
+    
+    ///CHECK: unchecked
+    pub dex_program: UncheckedAccount<'info>,
+}
+
+impl <'info> CancelAllZoPerpOrders <'info> {
+    fn into_cancel_all_zo_perp_orders_context(&self) -> CpiContext<'_, '_, '_, 'info, CancelAllPerpOrders<'info>> {
+        let cpi_program = self.dex_program.to_account_info();
+        let cpi_accounts =  CancelAllPerpOrders {
+            state: self.state.to_account_info(),
+            state_signer: self.state_signer.to_account_info(),
+            control: self.control.to_account_info(),
+            authority: self.authority.to_account_info(),
+            margin: self.margin.to_account_info(),
+            open_orders: self.open_orders.to_account_info(),
+            dex_market: self.dex_market.to_account_info(),
+            dex_program: self.dex_program.to_account_info(),
+            cache: self.cache.to_account_info(),
+            req_q: self.req_q.to_account_info(),
+            event_q: self.event_q.to_account_info(),
+            market_bids: self.market_bids.to_account_info(),
+            market_asks: self.market_asks.to_account_info(),
+        };
+        
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}

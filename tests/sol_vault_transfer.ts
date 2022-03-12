@@ -38,6 +38,12 @@ describe("sol_vault_transfer", () => {
 
   anchor.setProvider(provider);
 
+  const zoDexId = new PublicKey("ZDxUi178LkcuwdxcEqsSo2E7KATH99LAAXN5LcSVMBC");
+
+  const serumDexId = new PublicKey(
+    "DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY"
+  );
+
   const zoStateId = new PublicKey(
     "KwcWW7WvgSXLJcyjKZJBHLbfriErggzYHpjS9qjVD5F"
   );
@@ -81,7 +87,7 @@ describe("sol_vault_transfer", () => {
     console.log("depUsdc:", depUsdc);
     console.log("depositor usdc acct:", depUsdcAcct);
 
-    const [[key, nonce], control, controlLamports] = await Promise.all([
+    const [[margin, nonce], control, controlLamports] = await Promise.all([
       PublicKey.findProgramAddress(
         [
           depositor.publicKey.toBuffer(),
@@ -97,16 +103,13 @@ describe("sol_vault_transfer", () => {
     ]);
 
     console.log("======================================");
-    console.log("key:", key.toBase58());
+    console.log("key:", margin.toBase58());
     console.log("nonce:", nonce);
     console.log("control lamports", controlLamports);
 
-    const some = await program.provider.connection.getAccountInfo(key);
-    console.log("some:", some || "none");
+    const info = await program.provider.connection.getAccountInfo(margin);
 
-    // console.log("some data:", some.data.toString("utf-8"));
-
-    if (some) {
+    if (info) {
       console.log("Margin account already exists");
     } else {
       //calling CreateMargin through CPI call
@@ -115,7 +118,7 @@ describe("sol_vault_transfer", () => {
         accounts: {
           authority: depositor.publicKey,
           zoProgramState: zoState.pubkey,
-          zoMargin: key,
+          zoMargin: margin,
           zoProgram: zoProgram.programId,
           control: control.publicKey,
           rent: SYSVAR_RENT_PUBKEY,
@@ -149,7 +152,7 @@ describe("sol_vault_transfer", () => {
 
     //deposit
 
-    const depositAmount = new anchor.BN("10000");
+    const depositAmount = new anchor.BN("100000");
     console.log("depositing amount: ", depositAmount.toString());
 
     const fetchBalanceBefore = await provider.connection.getTokenAccountBalance(
@@ -219,66 +222,83 @@ describe("sol_vault_transfer", () => {
 
     //Withdrawal
 
-    const withdrawAmount = new anchor.BN("50");
+    // const withdrawAmount = new anchor.BN("50");
 
-    console.log("withdrawing amount: ", withdrawAmount.toString());
+    // console.log("withdrawing amount: ", withdrawAmount.toString());
 
-    const fetchBalanceBefore2 =
-      await provider.connection.getTokenAccountBalance(depUsdc.address);
-    console.log(
-      "user USDC balance before withdraw: ",
-      fetchBalanceBefore2.value.amount
-    );
+    // const fetchBalanceBefore2 =
+    //   await provider.connection.getTokenAccountBalance(depUsdc.address);
+    // console.log(
+    //   "user USDC balance before withdraw: ",
+    //   fetchBalanceBefore2.value.amount
+    // );
 
-    await zoMargin.refresh();
-    console.log(
-      "user Margin USDC balance before withdraw: ",
-      zoMargin.balances.USDC.n.toString()
-    );
+    // await zoMargin.refresh();
+    // console.log(
+    //   "user Margin USDC balance before withdraw: ",
+    //   zoMargin.balances.USDC.n.toString()
+    // );
 
-    const fetchVaultBalanceBefore3 =
-      await provider.connection.getTokenAccountBalance(zoUsdcVault);
-    console.log(
-      "state vault USDC balance before withdraw: ",
-      fetchVaultBalanceBefore3.value.amount
-    );
+    // const fetchVaultBalanceBefore3 =
+    //   await provider.connection.getTokenAccountBalance(zoUsdcVault);
+    // console.log(
+    //   "state vault USDC balance before withdraw: ",
+    //   fetchVaultBalanceBefore3.value.amount
+    // );
 
-    const tx = await program.rpc.zoWithdrawal(withdrawAmount, {
+    // const tx = await program.rpc.zoWithdrawal(withdrawAmount, {
+    //   accounts: {
+    //     authority: depositor.publicKey,
+    //     zoProgramState: zoState.pubkey,
+    //     zoProgramMargin: zoMargin.pubkey,
+    //     zoProgram: zoProgram.programId,
+    //     control: zoMargin.control.pubkey,
+    //     cache: zoState.cache.pubkey,
+    //     stateSigner: zoMargin.state.signer,
+    //     tokenAccount: depUsdc.address,
+    //     zoProgramVault: zoUsdcVault,
+    //     tokenProgram: TOKEN_PROGRAM_ID,
+    //   },
+    // });
+    // await provider.connection.confirmTransaction(tx, "finalized");
+
+    // const fetchBalanceAfter = await provider.connection.getTokenAccountBalance(
+    //   depUsdc.address
+    // );
+    // console.log(
+    //   "user USDC balance after withdraw: ",
+    //   fetchBalanceAfter.value.amount
+    // );
+
+    // await zoMargin.refresh();
+    // console.log(
+    //   "user Margin USDC balance after withdraw: ",
+    //   zoMargin.balances.USDC.n.toString()
+    // );
+
+    // const fetchVaultBalanceAfter =
+    //   await provider.connection.getTokenAccountBalance(zoUsdcVault);
+    // console.log(
+    //   "state vault USDC balance after withdraw: ",
+    //   fetchVaultBalanceAfter.value.amount
+    // );
+
+    const ooKey = Keypair.generate();
+
+    const tx10 = await program.rpc.createZoPerpOrder({
       accounts: {
-        authority: depositor.publicKey,
-        zoProgramState: zoState.pubkey,
-        zoProgramMargin: zoMargin.pubkey,
-        zoProgram: zoProgram.programId,
-        control: zoMargin.control.pubkey,
-        cache: zoState.cache.pubkey,
+        state: zoState.pubkey,
         stateSigner: zoMargin.state.signer,
-        tokenAccount: depUsdc.address,
-        zoProgramVault: zoUsdcVault,
-        tokenProgram: TOKEN_PROGRAM_ID,
+        authority: depositor,
+        margin: zoMargin.pubkey,
+        control: zoControl.pubkey,
+        openOrders: ooKey.publicKey,
+        dexMarket: serumDexId,
+        dexProgram: zoDexId,
+        rent: SYSVAR_RENT_PUBKEY,
+        systemProgram: SystemProgram.programId,
       },
     });
-    await provider.connection.confirmTransaction(tx, "finalized");
-
-    const fetchBalanceAfter = await provider.connection.getTokenAccountBalance(
-      depUsdc.address
-    );
-    console.log(
-      "user USDC balance after withdraw: ",
-      fetchBalanceAfter.value.amount
-    );
-
-    await zoMargin.refresh();
-    console.log(
-      "user Margin USDC balance after withdraw: ",
-      zoMargin.balances.USDC.n.toString()
-    );
-
-    const fetchVaultBalanceAfter =
-      await provider.connection.getTokenAccountBalance(zoUsdcVault);
-    console.log(
-      "state vault USDC balance after withdraw: ",
-      fetchVaultBalanceAfter.value.amount
-    );
 
     //
 
