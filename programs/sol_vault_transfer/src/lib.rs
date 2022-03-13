@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Token};
+use anchor_spl::token::{self, TokenAccount, Token, Transfer};
 use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 
 #[program]
 pub mod sol_vault_transfer {
+
 
     use super::*;
 
@@ -33,8 +34,8 @@ pub mod sol_vault_transfer {
     }
     
     
-    pub fn place_zo_perp_order (ctx: Context<PlaceZoPerpOrder>, is_long: bool, limit_price: u64, max_base_quantity:u64, max_quote_quantity:u64, order_type: zo::OrderType, limit: u16, client_id: u64) -> Result<()> {
-        zo::cpi::place_perp_order(ctx.accounts.into_place_zo_perp_order_context(), is_long, limit_price, max_base_quantity, max_quote_quantity, order_type, limit, client_id)?;
+    pub fn place_zo_perp_order (ctx: Context<PlaceZoPerpOrder>, is_long: bool, limit_price: u64, max_base_quantity:u64, max_quote_quantity:u64, order_type: ZoOrderType, limit: u16, client_id: u64) -> Result<()> {
+        zo::cpi::place_perp_order(ctx.accounts.into_place_zo_perp_order_context(), is_long, limit_price, max_base_quantity, max_quote_quantity, order_type.into(), limit, client_id)?;
         Ok(())
     }
     
@@ -47,6 +48,43 @@ pub mod sol_vault_transfer {
         zo::cpi::cancel_all_perp_orders(ctx.accounts.into_cancel_all_zo_perp_orders_context() , limit)?;
         Ok(())
     }
+
+    pub fn create_vault (ctx: Context<CreateVault>) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        vault.depositor = *ctx.accounts.depositor.key;
+        vault.vault_amount = 0;
+        Ok(())
+
+        
+    }
+
+    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {
+        
+        let (pda_account, _) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
+        
+        token::transfer(ctx.accounts.into_deposit_to_vault_context(), transfer_amount)?;
+        
+        ctx.accounts.vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
+        ctx.accounts.vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
+        ctx.accounts.vault.vault_amount = ctx.accounts.vault.add_to_vault(transfer_amount);
+        ctx.accounts.vault.pda_account = pda_account;
+
+        Ok(())
+    }
+    
+    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault>, transfer_amount: u64) -> Result<()> {
+        
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
+        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];
+
+        token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), transfer_amount)?;
+                
+        ctx.accounts.vault.vault_amount = ctx.accounts.vault.sub_from_vault(transfer_amount);
+
+        Ok(())
+    }
+
 
 
 }
@@ -457,5 +495,145 @@ impl <'info> CancelAllZoPerpOrders <'info> {
         };
         
         CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+
+#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, PartialEq)]
+pub enum ZoOrderType {
+    Limit,
+    ImmediateOrCancel,
+    PostOnly,
+    ReduceOnlyIoc,
+    ReduceOnlyLimit,
+    FillOrKill,
+}
+
+impl From<ZoOrderType> for zo::OrderType {
+    fn from(x: ZoOrderType) -> Self {
+        match x {
+            ZoOrderType::Limit => Self::Limit,
+            ZoOrderType::ImmediateOrCancel => Self::ImmediateOrCancel,
+            ZoOrderType::PostOnly => Self::PostOnly,
+            ZoOrderType::ReduceOnlyIoc => Self::ReduceOnlyIoc,
+            ZoOrderType::ReduceOnlyLimit => Self::ReduceOnlyLimit,
+            ZoOrderType::FillOrKill => Self::FillOrKill,
+            
+        }
+    }
+}
+
+#[derive(Accounts)]
+pub struct DepositToVault<'info> {
+    
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+    
+    #[account(mut)]
+    pub depositor_token_acct: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub vault_token_acct: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub vault: Account<'info, Vault>,
+    
+    // pub pda_account: AccountInfo<'info>,
+    
+    // #[account(mut)]
+    // pub user_bank: Account<'info, UserBank>,
+    
+    pub token_program: Program<'info, Token>,
+}
+
+impl<'info> DepositToVault<'info> {
+    fn into_deposit_to_vault_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_accounts = Transfer {
+            from: self.depositor_token_acct.to_account_info().clone(),
+            to: self.vault_token_acct.to_account_info().clone(),
+            authority: self.depositor.to_account_info().clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+
+
+    }
+}
+
+//Withdraw from vault
+#[derive(Accounts)]
+pub struct WithdrawFromVault<'info> {
+    
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+    
+    #[account(mut)]
+    pub depositor_token_acct: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub vault_token_acct: Account<'info, TokenAccount>,
+    
+    /// CHECK: PDA Account
+    #[account(mut)]
+    pub pda_account: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub vault: Account<'info, Vault>,
+    
+    pub token_program: Program<'info, Token>,
+    
+}
+
+impl<'info> WithdrawFromVault<'info> {
+    fn into_withdraw_from_vault_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_accounts = Transfer {
+            from: self.vault_token_acct.to_account_info().clone(),
+            to: self.depositor_token_acct.to_account_info().clone(),
+            authority: self.pda_account.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+}
+
+#[derive(Accounts)]
+pub struct CreateVault <'info> {
+    
+    #[account(init, payer=depositor, space= 8 + Vault::LEN)]
+    pub vault: Account<'info, Vault>,
+    
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct Vault {
+    
+    //the depositor public key
+    pub depositor: Pubkey, 
+    
+    // depositor token account
+    pub depositor_token_account: Pubkey, 
+    
+    pub vault_token_account: Pubkey, 
+    
+    pub pda_account: Pubkey,
+
+    pub vault_amount: u64,
+}
+
+impl Vault {
+    pub const LEN: usize = 64 + 32 + 32 + 32 + 32;
+
+    pub fn add_to_vault (&mut self, amount: u64) -> u64 {
+        self.vault_amount = self.vault_amount.checked_add(amount).unwrap();
+        self.vault_amount
+    }
+    
+    pub fn sub_from_vault (&mut self, amount: u64) -> u64 {
+        self.vault_amount = self.vault_amount.checked_sub(amount).unwrap();
+        self.vault_amount
     }
 }
