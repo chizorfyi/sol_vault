@@ -12,11 +12,8 @@ pub mod sol_vault_transfer {
     use super::*;
 
     pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {
-        
-        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;
-        
-        Ok(())
-        
+        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;        
+        Ok(())       
     }
 
     pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {
@@ -59,33 +56,20 @@ pub mod sol_vault_transfer {
         vault.vault_token_account = Pubkey::from_str("BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV").unwrap();
         vault.vault_amount = 0;
         vault.pda_account = pda_account;
-        Ok(())
-
-        
+        Ok(())        
     }
 
-    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {
-        
-        
-        token::transfer(ctx.accounts.into_deposit_to_vault_context(), transfer_amount)?;
-        
-        // ctx.accounts.vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
-        // ctx.accounts.vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
+    pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {                
+        token::transfer(ctx.accounts.into_deposit_to_vault_context(), transfer_amount)?;        
         ctx.accounts.vault.vault_amount = ctx.accounts.vault.add_to_vault(transfer_amount);
-        
         Ok(())
     }
     
-    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault>, transfer_amount: u64) -> Result<()> {
-        
-        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
-        
-        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];
-        
-        token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), transfer_amount)?;
-                
+    pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault>, transfer_amount: u64) -> Result<()> {        
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+        token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), transfer_amount)?;                
         ctx.accounts.vault.vault_amount = ctx.accounts.vault.sub_from_vault(transfer_amount);
-
         Ok(())
     }
 
@@ -97,8 +81,12 @@ pub mod sol_vault_transfer {
 #[derive(Accounts)]
 #[instruction(zo_margin_nonce: u8)]
 pub struct CreateZoMargin<'info> {
+    
     #[account(mut)]
     pub authority: Signer<'info>,
+    
+    #[account(mut)]
+    pub payer: Signer<'info>,
     
     #[account(mut)]
     pub zo_program_state: AccountLoader<'info, State>,
@@ -110,7 +98,7 @@ pub struct CreateZoMargin<'info> {
     pub zo_program: Program<'info, Zo>,
     
     ///CHECK: uninitialized
-    #[account(mut)]
+    #[account(zero)]
     pub control: UncheckedAccount<'info>,
     
     pub rent: Sysvar<'info, Rent>,
@@ -123,7 +111,7 @@ impl <'info> CreateZoMargin <'info> {
         let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts = zo::cpi::accounts::CreateMargin {
             state: self.zo_program_state.to_account_info(),
-            payer: self.authority.to_account_info(),
+            payer: self.payer.to_account_info(),
             authority: self.authority.to_account_info(),
             margin: self.zo_margin.to_account_info(),
             control: self.control.to_account_info(),
@@ -138,9 +126,12 @@ impl <'info> CreateZoMargin <'info> {
 #[derive(Accounts)]
 #[instruction(amount: u64)]
 pub struct ZoDeposit<'info> {
-    #[account(mut)]
     
+    #[account(mut)]
     pub authority: Signer<'info>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
     
     pub zo_program_state: AccountLoader<'info, State>,
     
@@ -155,7 +146,7 @@ pub struct ZoDeposit<'info> {
     #[account(mut)]
     pub cache: AccountLoader<'info, Cache>,
     
-    #[account(mut)]
+    #[account(mut, constraint = token_account.owner == *authority.to_account_info().key)]
     pub token_account: Account<'info, TokenAccount>,
     
     #[account(mut)]
@@ -206,7 +197,7 @@ pub struct ZoWithdrawal<'info> {
     #[account(mut)]
     pub control: AccountLoader<'info, Control>,
     
-    #[account(mut)]
+    #[account(mut, constraint = token_account.owner == *authority.to_account_info().key)]
     pub token_account: Account<'info, TokenAccount>,
     
     #[account(mut)]
@@ -247,6 +238,9 @@ pub struct CreateZoPerpOpenOrders<'info> {
     pub authority: Signer<'info>,
     
     #[account(mut)]
+    pub payer: Signer<'info>,
+    
+    #[account(mut)]
     pub margin: AccountLoader<'info, Margin>,
     
     #[account(mut)]
@@ -278,7 +272,7 @@ impl <'info> CreateZoPerpOpenOrders <'info> {
             state_signer: self.state_signer.to_account_info(),
             control: self.control.to_account_info(),
             authority: self.authority.to_account_info(),
-            payer: self.authority.to_account_info(),
+            payer: self.payer.to_account_info(),
             margin: self.margin.to_account_info(),
             rent: self.rent.to_account_info(),
             open_orders: self.open_orders.to_account_info(),
@@ -510,31 +504,6 @@ impl <'info> CancelAllZoPerpOrders <'info> {
     }
 }
 
-
-#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, PartialEq)]
-pub enum ZoOrderType {
-    Limit,
-    ImmediateOrCancel,
-    PostOnly,
-    ReduceOnlyIoc,
-    ReduceOnlyLimit,
-    FillOrKill,
-}
-
-impl From<ZoOrderType> for zo::OrderType {
-    fn from(x: ZoOrderType) -> Self {
-        match x {
-            ZoOrderType::Limit => Self::Limit,
-            ZoOrderType::ImmediateOrCancel => Self::ImmediateOrCancel,
-            ZoOrderType::PostOnly => Self::PostOnly,
-            ZoOrderType::ReduceOnlyIoc => Self::ReduceOnlyIoc,
-            ZoOrderType::ReduceOnlyLimit => Self::ReduceOnlyLimit,
-            ZoOrderType::FillOrKill => Self::FillOrKill,
-            
-        }
-    }
-}
-
 #[derive(Accounts)]
 pub struct DepositToVault<'info> {
     
@@ -547,7 +516,11 @@ pub struct DepositToVault<'info> {
     #[account(mut)]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
-    #[account(mut)]
+    #[account(
+        mut, 
+        constraint = vault.depositor_token_account == *depositor_token_acct.to_account_info().key, 
+        constraint = vault.vault_token_account == *vault_token_acct.to_account_info().key 
+    )]
     pub vault: Account<'info, Vault>,
     
     // pub pda_account: AccountInfo<'info>,    
@@ -564,13 +537,14 @@ impl<'info> DepositToVault<'info> {
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)
-
+        
 
     }
 }
 
 //Withdraw from vault
 #[derive(Accounts)]
+#[instruction(transfer_amount: u64)]
 pub struct WithdrawFromVault<'info> {
     
     #[account(mut)]
@@ -586,7 +560,12 @@ pub struct WithdrawFromVault<'info> {
     #[account(mut)]
     pub pda_account: AccountInfo<'info>,
     
-    #[account(mut)]
+    #[account(
+        mut, 
+        constraint = vault.vault_amount >= transfer_amount, 
+        constraint = vault.depositor_token_account == *depositor_token_acct.to_account_info().key, 
+        constraint = vault.vault_token_account == *vault_token_acct.to_account_info().key 
+    )]
     pub vault: Account<'info, Vault>,
     
     pub token_program: Program<'info, Token>,
@@ -610,7 +589,7 @@ pub struct CreateVault <'info> {
     
     #[account(init, payer=depositor, space= 8 + Vault::LEN)]
     pub vault: Account<'info, Vault>,
-
+    
     // pub mint: Account<'info, Mint>,
     
     #[account(mut)]
@@ -628,8 +607,6 @@ pub struct Vault {
     //the depositor public key
     pub depositor: Pubkey, 
     
-    // pub mint: Pubkey,
-    
     // depositor token account
     pub depositor_token_account: Pubkey, 
     
@@ -644,12 +621,34 @@ impl Vault {
     pub const LEN: usize = 64 + 32 + 32 + 32 + 32;
 
     pub fn add_to_vault (&mut self, amount: u64) -> u64 {
-        self.vault_amount = self.vault_amount.checked_add(amount).unwrap();
-        self.vault_amount
+        self.vault_amount.checked_add(amount).unwrap()
     }
     
     pub fn sub_from_vault (&mut self, amount: u64) -> u64 {
-        self.vault_amount = self.vault_amount.checked_sub(amount).unwrap();
-        self.vault_amount
+        self.vault_amount.checked_sub(amount).unwrap()
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, PartialEq)]
+pub enum ZoOrderType {
+    Limit,
+    ImmediateOrCancel,
+    PostOnly,
+    ReduceOnlyIoc,
+    ReduceOnlyLimit,
+    FillOrKill,
+}
+
+impl From<ZoOrderType> for zo::OrderType {
+    fn from(x: ZoOrderType) -> Self {
+        match x {
+            ZoOrderType::Limit => Self::Limit,
+            ZoOrderType::ImmediateOrCancel => Self::ImmediateOrCancel,
+            ZoOrderType::PostOnly => Self::PostOnly,
+            ZoOrderType::ReduceOnlyIoc => Self::ReduceOnlyIoc,
+            ZoOrderType::ReduceOnlyLimit => Self::ReduceOnlyLimit,
+            ZoOrderType::FillOrKill => Self::FillOrKill,
+            
+        }
     }
 }
