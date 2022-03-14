@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, TokenAccount, Token, Transfer};
+use anchor_spl::token::{self, TokenAccount, Token, Transfer, Mint};
 use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
-use std::str::FromStr;
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 #[program]
@@ -53,7 +52,7 @@ pub mod sol_vault_transfer {
         
         vault.depositor = *ctx.accounts.depositor.key;
         vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
-        vault.vault_token_account = Pubkey::from_str("BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV").unwrap();
+        vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
         vault.vault_amount = 0;
         vault.pda_account = pda_account;
         Ok(())        
@@ -587,17 +586,21 @@ impl<'info> WithdrawFromVault<'info> {
 #[derive(Accounts)]
 pub struct CreateVault <'info> {
     
-    #[account(init, payer=depositor, space= 8 + Vault::LEN)]
-    pub vault: Account<'info, Vault>,
-    
-    // pub mint: Account<'info, Mint>,
-    
-    #[account(mut)]
-    pub depositor_token_acct: Account<'info, TokenAccount>,
-    
     #[account(mut)]
     pub depositor: Signer<'info>,
     
+    #[account(init, payer=depositor, space= 8 + Vault::LEN)]
+    pub vault: Account<'info, Vault>,
+    
+    
+    #[account(constraint = vault_token_acct.mint == *mint.to_account_info().key)]
+    pub vault_token_acct: Account<'info, TokenAccount>,
+    
+    #[account(constraint = depositor_token_acct.mint == *mint.to_account_info().key)]
+    pub depositor_token_acct: Account<'info, TokenAccount>,
+    
+    pub mint: Account<'info, Mint>,
+        
     pub system_program: Program<'info, System>,
 }
 
