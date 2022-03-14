@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount, Token, Transfer};
 use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
+use std::str::FromStr;
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
-
 #[program]
 pub mod sol_vault_transfer {
 
+    
 
     use super::*;
 
@@ -15,9 +16,9 @@ pub mod sol_vault_transfer {
         zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;
         
         Ok(())
-
+        
     }
-    
+
     pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {
         zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), false , amount)?;
         Ok(())
@@ -50,9 +51,14 @@ pub mod sol_vault_transfer {
     }
 
     pub fn create_vault (ctx: Context<CreateVault>) -> Result<()> {
+        let (pda_account, _) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
         let vault = &mut ctx.accounts.vault;
+        
         vault.depositor = *ctx.accounts.depositor.key;
+        vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
+        vault.vault_token_account = Pubkey::from_str("BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV").unwrap();
         vault.vault_amount = 0;
+        vault.pda_account = pda_account;
         Ok(())
 
         
@@ -60,15 +66,13 @@ pub mod sol_vault_transfer {
 
     pub fn deposit_to_vault (ctx: Context<DepositToVault>, transfer_amount: u64) -> Result<()> {
         
-        let (pda_account, _) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
         
         token::transfer(ctx.accounts.into_deposit_to_vault_context(), transfer_amount)?;
         
-        ctx.accounts.vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
-        ctx.accounts.vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
+        // ctx.accounts.vault.depositor_token_account = *ctx.accounts.depositor_token_acct.to_account_info().key;
+        // ctx.accounts.vault.vault_token_account = *ctx.accounts.vault_token_acct.to_account_info().key;
         ctx.accounts.vault.vault_amount = ctx.accounts.vault.add_to_vault(transfer_amount);
-        ctx.accounts.vault.pda_account = pda_account;
-
+        
         Ok(())
     }
     
@@ -77,7 +81,7 @@ pub mod sol_vault_transfer {
         let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);
         
         let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];
-
+        
         token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), transfer_amount)?;
                 
         ctx.accounts.vault.vault_amount = ctx.accounts.vault.sub_from_vault(transfer_amount);
@@ -164,7 +168,7 @@ impl <'info> ZoDeposit <'info> {
     fn into_zo_deposit_context(&self) -> CpiContext<'_, '_, '_, 'info, Deposit<'info>> {
         let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts = Deposit {
-             state: self.zo_program_state.to_account_info(),
+            state: self.zo_program_state.to_account_info(),
             state_signer: self.state_signer.to_account_info(),
             cache: self.cache.to_account_info(),
             authority: self.authority.to_account_info(),
@@ -260,13 +264,15 @@ pub struct CreateZoPerpOpenOrders<'info> {
     pub dex_program: UncheckedAccount<'info>,
     
     pub rent: Sysvar<'info, Rent>,
+
+    pub zo_program: Program<'info, Zo>,
     
     pub system_program: Program<'info, System>,
 }
 
 impl <'info> CreateZoPerpOpenOrders <'info> {
     fn into_create_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, CreatePerpOpenOrders<'info>> {
-        let cpi_program = self.dex_program.to_account_info();
+        let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts =  CreatePerpOpenOrders {
             state: self.state.to_account_info(),
             state_signer: self.state_signer.to_account_info(),
@@ -336,13 +342,15 @@ pub struct PlaceZoPerpOrder<'info> {
     ///CHECK: unchecked
     #[account(address = ZO_DEX_PID)]
     pub dex_program: AccountInfo<'info>,
+
+    pub zo_program: Program<'info, Zo>,
     
     pub rent: Sysvar<'info, Rent>,
 }
 
 impl <'info> PlaceZoPerpOrder <'info> {
     fn into_place_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, PlacePerpOrder<'info>> {
-        let cpi_program = self.dex_program.to_account_info();
+        let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts =  PlacePerpOrder {
             state: self.state.to_account_info(),
             state_signer: self.state_signer.to_account_info(),
@@ -403,11 +411,13 @@ pub struct CancelZoPerpOrder<'info> {
     
     ///CHECK: unchecked
     pub dex_program: UncheckedAccount<'info>,
+    
+    pub zo_program: Program<'info, Zo>,
 }
 
 impl <'info> CancelZoPerpOrder <'info> {
     fn into_cancel_zo_perp_order_context(&self) -> CpiContext<'_, '_, '_, 'info, CancelPerpOrder<'info>> {
-        let cpi_program = self.dex_program.to_account_info();
+        let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts =  CancelPerpOrder {
             state: self.state.to_account_info(),
             control: self.control.to_account_info(),
@@ -473,11 +483,13 @@ pub struct CancelAllZoPerpOrders<'info> {
     
     ///CHECK: unchecked
     pub dex_program: UncheckedAccount<'info>,
+    
+    pub zo_program: Program<'info, Zo>,
 }
 
 impl <'info> CancelAllZoPerpOrders <'info> {
     fn into_cancel_all_zo_perp_orders_context(&self) -> CpiContext<'_, '_, '_, 'info, CancelAllPerpOrders<'info>> {
-        let cpi_program = self.dex_program.to_account_info();
+        let cpi_program = self.zo_program.to_account_info();
         let cpi_accounts =  CancelAllPerpOrders {
             state: self.state.to_account_info(),
             state_signer: self.state_signer.to_account_info(),
@@ -538,11 +550,8 @@ pub struct DepositToVault<'info> {
     #[account(mut)]
     pub vault: Account<'info, Vault>,
     
-    // pub pda_account: AccountInfo<'info>,
-    
-    // #[account(mut)]
-    // pub user_bank: Account<'info, UserBank>,
-    
+    // pub pda_account: AccountInfo<'info>,    
+
     pub token_program: Program<'info, Token>,
 }
 
@@ -601,6 +610,11 @@ pub struct CreateVault <'info> {
     
     #[account(init, payer=depositor, space= 8 + Vault::LEN)]
     pub vault: Account<'info, Vault>,
+
+    // pub mint: Account<'info, Mint>,
+    
+    #[account(mut)]
+    pub depositor_token_acct: Account<'info, TokenAccount>,
     
     #[account(mut)]
     pub depositor: Signer<'info>,
@@ -613,6 +627,8 @@ pub struct Vault {
     
     //the depositor public key
     pub depositor: Pubkey, 
+    
+    // pub mint: Pubkey,
     
     // depositor token account
     pub depositor_token_account: Pubkey, 

@@ -19,10 +19,14 @@ import {
   createProgram,
   createTokenAccount,
   Margin,
+  OrderType,
   State,
   TOKEN_PROGRAM_ID,
   ZERO_ONE_DEVNET_PROGRAM_ID,
   ZO_DEX_DEVNET_PROGRAM_ID,
+  ZO_FUTURE_TAKER_FEE,
+  ZO_OPTION_TAKER_FEE,
+  ZO_SQUARE_TAKER_FEE,
 } from "@zero_one/client";
 import {
   getOrCreateAssociatedTokenAccount,
@@ -45,10 +49,6 @@ describe("sol_vault_transfer", () => {
 
   const zoDexId = new PublicKey("ZDxUi178LkcuwdxcEqsSo2E7KATH99LAAXN5LcSVMBC");
 
-  // const serumDexId = new PublicKey(
-  //   "DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY"
-  // );
-
   const zoStateId = new PublicKey(
     "KwcWW7WvgSXLJcyjKZJBHLbfriErggzYHpjS9qjVD5F"
   );
@@ -61,8 +61,18 @@ describe("sol_vault_transfer", () => {
 
   it("deposits", async () => {
     // Add your test here.
+    // const provider2 = new anchor.Provider(
+    //   new anchor.web3.Connection("https://api.devnet.solana.com"),
+    //   // @ts-ignore
+    //   new anchor.Wallet(depositor2),
+    //   {
+    //     preflightCommitment: "confirmed",
+    //     commitment: "confirmed",
+    //   }
+    // );
 
-    console.log("depositor pubkey:", depositor.publicKey.toBase58());
+    // console.log("depositor pubkey:", depositor.publicKey.toBase58());
+    // console.log("depositor2 pubkey:", depositor2.publicKey.toBase58());
 
     const zoProgram = createProgram(provider, Cluster.Devnet);
 
@@ -74,11 +84,17 @@ describe("sol_vault_transfer", () => {
 
     console.log("---------------------------------------");
 
-    const [zoUsdcVault, vaultInfo] = zoState.getVaultCollateralByMint(usdcMint);
+    const depositorMargin = await Margin.load(zoProgram, zoState);
+    const depositorControl = await Control.load(
+      zoProgram,
+      depositorMargin.data.control
+    );
 
-    console.log("---------------------------");
-    console.log("zo usdc vault:", zoUsdcVault.toBase58());
-    console.log("zo usdc vault info:", vaultInfo);
+    // const [zoUsdcVault, vaultInfo] = zoState.getVaultCollateralByMint(usdcMint);
+
+    // console.log("---------------------------");
+    // console.log("zo usdc vault:", zoUsdcVault.toBase58());
+    // console.log("zo usdc vault info:", vaultInfo);
 
     const [merPda, merNonce] = await PublicKey.findProgramAddress(
       [Buffer.from("msvault")],
@@ -94,117 +110,137 @@ describe("sol_vault_transfer", () => {
       depositor.publicKey
     );
 
-    const dep2Usdc = await getOrCreateAssociatedTokenAccount(
-      provider.connection,
-      depositor2,
-      usdcMint,
-      depositor2.publicKey
-    );
+    // const dep2Usdc = await getOrCreateAssociatedTokenAccount(
+    //   provider2.connection,
+    //   depositor2,
+    //   usdcMint,
+    //   depositor2.publicKey
+    // );
 
-    // const vaultkey = Keypair.generate();
+    // const vaultkey2 = Keypair.generate();
+
     const vaultkey = new PublicKey(
       "EqahQki9pwbZw8b57QfHfdScgZMaqtjrA7CzFagoeyDH"
     );
 
+    const vaultkey2 = new PublicKey(
+      "3jNdwjQbuRxvNES686Xvf7QiWe2jys2TBudPR6JMWmUy"
+    );
+
     // console.log("vault key:", vaultkey.publicKey.toBase58());
-    console.log("vault key:", vaultkey.toBase58());
+    // console.log("vault key:", vaultkey.toBase58());
+
+    // console.log("vault2 key:", vaultkey2.toBase58());
+    // console.log("vault key:", vaultkey2.toBase58());
 
     // const msUsdc = await createTokenAccount(provider, usdcMint, merPda);
 
-    const msUsdc = new PublicKey(
-      "BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV"
-    );
+    // const msUsdc = new PublicKey(
+    //   "BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV"
+    // );
 
-    const msUsdcInfo = await getAccount(provider.connection, msUsdc);
+    // const msUsdcInfo = await getAccount(provider.connection, msUsdc);
 
-    console.log("msUsdc account:", msUsdc.toBase58());
-    console.log("msUsdc account address:", msUsdcInfo.owner.toBase58());
+    // console.log("msUsdc account:", msUsdc.toBase58());
+    // console.log("msUsdc account address:", msUsdcInfo.owner.toBase58());
 
-    console.log("---------------------------------------");
+    // console.log("---------------------------------------");
 
-    // const tx1 = await program.rpc.createVault({
+    // /// Create Vault
+
+    // // const tx1 = await program.rpc.createVault({
+    // //   accounts: {
+    // //     depositor: depositor2.publicKey,
+    // //     vault: vaultkey2,
+    // //     depositorTokenAcct: dep2Usdc.address,
+    // //     systemProgram: SystemProgram.programId,
+    // //   },
+    // //   signers: [depositor2, vaultkey2],
+    // // });
+
+    // const vault_info = await program.account.vault.fetch(vaultkey2);
+    // console.log("vault info:", vault_info.vaultTokenAccount.toBase58());
+
+    // console.log("==================================");
+    // // console.log("tx1:", tx1);
+
+    // /// Deposit to Vault
+    // const tx2 = await program.rpc.depositToVault(new anchor.BN("1000"), {
     //   accounts: {
     //     depositor: depositor.publicKey,
-    //     vault: vaultkey.publicKey,
-    //     systemProgram: SystemProgram.programId,
+    //     depositorTokenAcct: depUsdc.address,
+    //     vaultTokenAcct: msUsdc,
+    //     vault: vaultkey,
+    //     tokenProgram: TOKEN_PROGRAM_ID,
     //   },
-    //   signers: [depositor, vaultkey],
+    //   signers: [depositor],
     // });
 
-    const vault_info = await program.account.vault.fetch(vaultkey);
-    console.log("vault info:", vault_info);
+    // console.log("===================================");
+    // console.log("tx2:", tx2);
 
-    console.log("==================================");
-    // console.log("tx1:", tx1);
+    // const msUsdcInfo2 = await getAccount(provider.connection, msUsdc);
 
-    const tx2 = await program.rpc.depositToVault(new anchor.BN("1000"), {
-      accounts: {
-        depositor: depositor.publicKey,
-        depositorTokenAcct: depUsdc.address,
-        vaultTokenAcct: msUsdc,
-        vault: vaultkey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      },
-      signers: [depositor],
-    });
+    // const vault_info2 = await program.account.vault.fetch(vaultkey2);
 
-    console.log("===================================");
-    console.log("tx2:", tx2);
+    // // const balance = await provider.connection.getTokenAccountBalance(msUsdc)
+    // const balance = await provider.connection.getTokenAccountBalance(
+    //   depUsdc.address
+    // );
+    // const msbalance = await provider.connection.getTokenAccountBalance(msUsdc);
 
-    const msUsdcInfo2 = await getAccount(provider.connection, msUsdc);
+    // console.log("vault token acct info after transfer:", msbalance);
+    // console.log("depositor token acct info after transfer:", balance);
+    // console.log(
+    //   "vault info after transfer:",
+    //   vault_info2.vaultAmount.toNumber()
+    // );
+    // console.log(
+    //   "compare:",
+    //   vault_info2.vaultTokenAccount.toBase58(),
+    //   "to",
+    //   msUsdc.toBase58()
+    // );
 
-    const vault_info2 = await program.account.vault.fetch(vaultkey);
+    // console.log("==================================================");
 
-    // const balance = await provider.connection.getTokenAccountBalance(msUsdc)
-    const balance = await provider.connection.getTokenAccountBalance(
-      depUsdc.address
-    );
-    const msbalance = await provider.connection.getTokenAccountBalance(msUsdc);
+    // /// Withdraw from Vault
+    // const tx3 = await program.rpc.withdrawFromVault(new anchor.BN("999"), {
+    //   accounts: {
+    //     depositor: depositor.publicKey,
+    //     depositorTokenAcct: depUsdc.address,
+    //     pdaAccount: merPda,
+    //     tokenProgram: TOKEN_PROGRAM_ID,
+    //     vault: vaultkey,
+    //     vaultTokenAcct: msUsdc,
+    //   },
+    //   signers: [depositor],
+    // });
 
-    console.log("vault token acct info after transfer:", msbalance);
-    console.log("depositor token acct info after transfer:", balance);
-    console.log(
-      "vault info after transfer:",
-      vault_info2.vaultAmount.toNumber()
-    );
+    // console.log("===================================");
+    // console.log("tx3:", tx3);
 
-    console.log("==================================================");
+    // const msUsdcInfo3 = await getAccount(provider.connection, msUsdc);
 
-    const tx3 = await program.rpc.withdrawFromVault(new anchor.BN("999"), {
-      accounts: {
-        depositor: depositor.publicKey,
-        depositorTokenAcct: depUsdc.address,
-        pdaAccount: merPda,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        vault: vaultkey,
-        vaultTokenAcct: msUsdc,
-      },
-      signers: [depositor],
-    });
+    // const vault_info3 = await program.account.vault.fetch(vaultkey2);
 
-    console.log("===================================");
-    console.log("tx3:", tx3);
+    // const balance2 = await provider.connection.getTokenAccountBalance(
+    //   depUsdc.address
+    // );
+    // const msbalance2 = await provider.connection.getTokenAccountBalance(msUsdc);
 
-    const msUsdcInfo3 = await getAccount(provider.connection, msUsdc);
+    // console.log("vault token acct info after transfer:", msbalance2);
+    // console.log("depositor token acct info after withdrawal:", balance2);
 
-    const vault_info3 = await program.account.vault.fetch(vaultkey);
+    // // console.log("vault token acct info after withdrawal:", msUsdcInfo3);
+    // console.log(
+    //   "vault info after withdrawal:",
 
-    const balance2 = await provider.connection.getTokenAccountBalance(
-      depUsdc.address
-    );
-    const msbalance2 = await provider.connection.getTokenAccountBalance(msUsdc);
-
-    console.log("vault token acct info after transfer:", msbalance2);
-    console.log("depositor token acct info after withdrawal:", balance2);
-
-    // console.log("vault token acct info after withdrawal:", msUsdcInfo3);
-    console.log(
-      "vault info after withdrawal:",
-
-      vault_info3.vaultAmount.toNumber()
-    );
+    //   vault_info3.vaultAmount.toNumber()
+    // );
 
     // console.log("depUsdc:", depUsdc);
+    // console.log("dep2Usdc:", dep2Usdc);
 
     // const [[margin, nonce], control, controlLamports] = await Promise.all([
     //   PublicKey.findProgramAddress(
@@ -263,11 +299,9 @@ describe("sol_vault_transfer", () => {
     //   console.log("tx two:", txTwo);
     // }
 
-    // const depositorMargin = await Margin.load(zoProgram, zoState);
-    // const depositorControl = await Control.load(
-    //   zoProgram,
-    //   depositorMargin.data.control
-    // );
+    //
+
+    //
 
     // console.log("zo margin:", zoMargin);
     // console.log("zo control:", zoControl);
@@ -275,9 +309,9 @@ describe("sol_vault_transfer", () => {
 
     // console.log("dex markets:", markets["BTC-PERP"]);
 
-    //deposit
+    // //deposit
 
-    // const depositAmount = new anchor.BN("100000");
+    // const depositAmount = new anchor.BN("100000000000");
     // console.log("depositing amount: ", depositAmount.toString());
 
     // const fetchBalanceBefore = await provider.connection.getTokenAccountBalance(
@@ -288,10 +322,10 @@ describe("sol_vault_transfer", () => {
     //   fetchBalanceBefore.value.amount
     // );
 
-    // await zoMargin.refresh();
+    // await depositorMargin.refresh();
     // console.log(
     //   "user Margin USDC balance before deposit: ",
-    //   zoMargin.balances.USDC.n.toString()
+    //   depositorMargin.balances.USDC.n.toString()
     // );
 
     // const fetchVaultBalanceBefore =
@@ -305,10 +339,10 @@ describe("sol_vault_transfer", () => {
     //   accounts: {
     //     authority: depositor.publicKey,
     //     zoProgramState: zoState.pubkey,
-    //     zoProgramMargin: zoMargin.pubkey,
+    //     zoProgramMargin: depositorMargin.pubkey,
     //     zoProgram: zoProgram.programId,
     //     cache: zoState.cache.pubkey,
-    //     stateSigner: zoMargin.state.signer,
+    //     stateSigner: depositorMargin.state.signer,
     //     tokenAccount: depUsdc.address,
     //     zoProgramVault: zoUsdcVault,
     //     tokenProgram: TOKEN_PROGRAM_ID,
@@ -331,11 +365,11 @@ describe("sol_vault_transfer", () => {
     //   fetchBalanceAfter2.value.amount
     // );
 
-    // await zoMargin.refresh();
+    // await depositorMargin.refresh();
 
     // console.log(
     //   "user Margin USDC balance after deposit: ",
-    //   zoMargin.balances.USDC.n.toString()
+    //   depositorMargin.balances.USDC.n.toString()
     // );
 
     // const fetchVaultBalanceAfter3 =
@@ -408,28 +442,37 @@ describe("sol_vault_transfer", () => {
     //   fetchVaultBalanceAfter.value.amount
     // );
 
-    // const btcPerpMarketKey = markets["BTC-PERP"].pubKey;
+    //
+    const balance = await provider.connection.getTokenAccountBalance(
+      depUsdc.address
+    );
 
-    // const [openOrdersAcct] = await PublicKey.findProgramAddress(
-    //   [zoControl.pubkey.toBuffer(), btcPerpMarketKey.toBuffer()],
-    //   zoDexId
-    //   );
+    console.log("Balance:", balance);
 
-    // const [ookey] = await depositorMargin.getOpenOrdersKeyBySymbol(
-    //   "BTC-PERP",
-    //   Cluster.Devnet
-    // );
+    const btcPerpMarketKey = zoState.markets["BTC-PERP"].pubKey;
 
-    // console.log("ookey:", ookey.toBase58());
-    // // console.log("ookey:", openOrdersAcct.toBase58());
+    const [openOrdersAcct] = await PublicKey.findProgramAddress(
+      [depositorControl.pubkey.toBuffer(), btcPerpMarketKey.toBuffer()],
+      zoDexId
+    );
 
-    // const theOpenOrders = await depositorMargin.getOpenOrdersInfoBySymbol(
-    //   "BTC-PERP"
-    // );
+    const [ookey] = await depositorMargin.getOpenOrdersKeyBySymbol(
+      "BTC-PERP",
+      Cluster.Devnet
+    );
 
-    // console.log("open orders info:", theOpenOrders);
+    console.log("ookey:", ookey.toBase58());
+    console.log("ookey:", openOrdersAcct.toBase58());
 
-    // // console.log("zo state signer:", zoState.signer.toBase58());
+    const theOpenOrders = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", theOpenOrders);
+
+    //
+
+    // console.log("zo state signer:", zoState.signer.toBase58());
 
     // const tx10 = await program.rpc.createZoPerpOrder({
     //   accounts: {
@@ -443,15 +486,83 @@ describe("sol_vault_transfer", () => {
     //     dexProgram: ZO_DEX_DEVNET_PROGRAM_ID,
     //     rent: SYSVAR_RENT_PUBKEY,
     //     systemProgram: SystemProgram.programId,
+    //     zoProgram: ZERO_ONE_DEVNET_PROGRAM_ID,
     //   },
     //   signers: [depositor],
     // });
 
-    // const theOpenOrders2 = await depositorMargin.getOpenOrdersInfoBySymbol(
-    //   "BTC-PERP"
-    // );
+    /// Place Perp Orders
 
-    // console.log("open orders info:", theOpenOrders2);
+    const OpenOrders = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", OpenOrders);
+    console.log("ookey:", ookey);
+
+    const btcPerpMarket = await zoState.getMarketBySymbol("BTC-PERP");
+
+    const ordertype: OrderType = { postOnly: {} };
+
+    const isLong = true;
+
+    const limitPriceBn = btcPerpMarket.priceNumberToLots(35000);
+
+    const maxBaseQtyBn = btcPerpMarket.baseSizeNumberToLots(1000);
+
+    const takerFee =
+      btcPerpMarket.decoded.perpType.toNumber() === 1
+        ? ZO_FUTURE_TAKER_FEE
+        : btcPerpMarket.decoded.perpType.toNumber() === 2
+        ? ZO_OPTION_TAKER_FEE
+        : ZO_SQUARE_TAKER_FEE;
+    const feeMultiplier = isLong ? 1 + takerFee : 1 - takerFee;
+    const maxQuoteQtyBn = new anchor.BN(
+      Math.round(
+        limitPriceBn
+          .mul(maxBaseQtyBn)
+          .mul(btcPerpMarket.decoded["quoteLotSize"])
+          .toNumber() * feeMultiplier
+      )
+    );
+
+    const tx11 = await program.rpc.placeZoPerpOrder(
+      isLong,
+      limitPriceBn,
+      maxBaseQtyBn,
+      maxQuoteQtyBn,
+      ordertype,
+      10,
+      new anchor.BN("0"),
+      {
+        accounts: {
+          state: depositorMargin.state.pubkey,
+          stateSigner: depositorMargin.state.signer,
+          authority: depositor.publicKey,
+          cache: depositorMargin.state.cache.pubkey,
+          control: depositorControl.pubkey,
+          eventQ: btcPerpMarket.eventQueueAddress,
+          reqQ: btcPerpMarket.requestQueueAddress,
+          margin: depositorMargin.pubkey,
+          marketAsks: btcPerpMarket.asksAddress,
+          marketBids: btcPerpMarket.bidsAddress,
+          openOrders: ookey,
+          rent: SYSVAR_RENT_PUBKEY,
+          dexMarket: btcPerpMarketKey,
+          dexProgram: ZO_DEX_DEVNET_PROGRAM_ID,
+          zoProgram: ZERO_ONE_DEVNET_PROGRAM_ID,
+        },
+      }
+    );
+
+    console.log("======================================");
+    console.log("tx11:", tx11);
+
+    const theOpenOrders3 = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", theOpenOrders3);
 
     //
 
