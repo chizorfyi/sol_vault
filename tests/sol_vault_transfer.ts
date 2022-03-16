@@ -252,6 +252,11 @@ describe("sol_vault_transfer", () => {
     // console.log("depUsdc:", depUsdc);
     // console.log("dep2Usdc:", dep2Usdc);
 
+    const [merzopda, nonc] = await PublicKey.findProgramAddress(
+      [Buffer.from("msvault")],
+      zoProgram.programId
+    );
+
     const [[margin, nonce], control, controlLamports] = await Promise.all([
       PublicKey.findProgramAddress(
         [merPda.toBuffer(), zoState.pubkey.toBuffer(), Buffer.from("marginv1")],

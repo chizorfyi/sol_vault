@@ -8,21 +8,13 @@ pub mod sol_vault_transfer {
     
     use super::*;
     
-    pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {
-        // let seed = &[ctx.accounts.authority.key.as_ref(), ctx.accounts.zo_program_state.to_account_info().key.as_ref(), b"marginv1".as_ref()];
-        // let (_, bump) = Pubkey::find_program_address(seed, ctx.accounts.zo_program.key);        
-        // let seed_signature = &[&ctx.accounts.authority.key.as_ref()[..], &ctx.accounts.zo_program_state.to_account_info().key.as_ref()[..], &b"marginv1".as_ref()[..], &[bump]];        
-        
-        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
-        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
-        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context().with_signer(&[&seed_signature[..]]), zo_margin_nonce)?;        
+    pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {     
+        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;        
         Ok(())       
     }
     
-    pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {
-        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
-        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
-        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context().with_signer(&[&seed_signature[..]]), false , amount)?;
+    pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {    
+        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), false , amount)?;
         Ok(())
     }
     
