@@ -1,22 +1,28 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, TokenAccount, Token, Transfer, Mint};
+use anchor_spl::token::{self, TokenAccount, Token, Transfer};
 use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
 
 declare_id!("B9nAoiZPKrFy1sycYNHi4vu9acr5gztt68cMbUfV6ZWS");
 #[program]
-pub mod sol_vault_transfer {
-
+pub mod sol_vault_transfer {    
     
-
     use super::*;
-
+    
     pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {
-        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;        
+        // let seed = &[ctx.accounts.authority.key.as_ref(), ctx.accounts.zo_program_state.to_account_info().key.as_ref(), b"marginv1".as_ref()];
+        // let (_, bump) = Pubkey::find_program_address(seed, ctx.accounts.zo_program.key);        
+        // let seed_signature = &[&ctx.accounts.authority.key.as_ref()[..], &ctx.accounts.zo_program_state.to_account_info().key.as_ref()[..], &b"marginv1".as_ref()[..], &[bump]];        
+        
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context().with_signer(&[&seed_signature[..]]), zo_margin_nonce)?;        
         Ok(())       
     }
-
+    
     pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {
-        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), false , amount)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context().with_signer(&[&seed_signature[..]]), false , amount)?;
         Ok(())
     }
     
@@ -67,6 +73,7 @@ pub mod sol_vault_transfer {
     pub fn withdraw_from_vault (ctx: Context<WithdrawFromVault>, transfer_amount: u64) -> Result<()> {        
         let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
         let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+
         token::transfer(ctx.accounts.into_withdraw_from_vault_context().with_signer(&[&seed_signature[..]]), transfer_amount)?;                
         ctx.accounts.vault.vault_amount = ctx.accounts.vault.sub_from_vault(transfer_amount);
         Ok(())
@@ -81,14 +88,17 @@ pub mod sol_vault_transfer {
 #[instruction(zo_margin_nonce: u8)]
 pub struct CreateZoMargin<'info> {
     
+    ///CHECK: pda signer
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub authority: UncheckedAccount<'info>,
     
     #[account(mut)]
     pub payer: Signer<'info>,
     
+    ///CHECK: uninitialized
     #[account(mut)]
-    pub zo_program_state: AccountLoader<'info, State>,
+    pub zo_program_state: AccountInfo<'info>,
+    // pub zo_program_state: AccountLoader<'info, State>,
     
     ///CHECK: uninitialized
     #[account(mut)]
@@ -100,9 +110,13 @@ pub struct CreateZoMargin<'info> {
     #[account(zero)]
     pub control: UncheckedAccount<'info>,
     
-    pub rent: Sysvar<'info, Rent>,
+    ///CHECK: uninitialized
+    pub rent: AccountInfo<'info>,
+    // pub rent: Sysvar<'info, Rent>,
     
-    pub system_program: Program<'info, System>,
+    ///CHECK: uninitialized
+    pub system_program: AccountInfo<'info>,
+    // pub system_program: Program<'info, System>,
 }
 
 impl <'info> CreateZoMargin <'info> {
@@ -583,26 +597,27 @@ impl<'info> WithdrawFromVault<'info> {
     }
 }
 
+// #[instruction(bump:u8)]
 #[derive(Accounts)]
 pub struct CreateVault <'info> {
     
     #[account(mut)]
     pub depositor: Signer<'info>,
     
-    #[account(init, payer=depositor, space= 8 + Vault::LEN)]
+    #[account(init, payer=depositor, seeds=[depositor.key.as_ref(), b"vault".as_ref()], bump, space= 8 + Vault::LEN)]
     pub vault: Account<'info, Vault>,
     
     
-    #[account(constraint = vault_token_acct.mint == *mint.to_account_info().key)]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
-    #[account(constraint = depositor_token_acct.mint == *mint.to_account_info().key)]
+    #[account(constraint = depositor_token_acct.mint == vault_token_acct.mint)]
     pub depositor_token_acct: Account<'info, TokenAccount>,
     
-    pub mint: Account<'info, Mint>,
+    // pub mint: Account<'info, Mint>,
         
     pub system_program: Program<'info, System>,
 }
+
 
 #[account]
 pub struct Vault {
