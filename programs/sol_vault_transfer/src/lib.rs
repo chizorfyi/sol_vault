@@ -13,13 +13,13 @@ pub mod sol_vault_transfer {
         Ok(())       
     }
     
-    pub fn zo_deposit (ctx: Context<ZoDeposit>, amount: u64) -> Result<()> {    
-        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), false , amount)?;
+    pub fn zo_deposit (ctx: Context<ZoDeposit>, repay_only:bool, amount: u64) -> Result<()> {    
+        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), repay_only , amount)?;
         Ok(())
     }
     
-    pub fn zo_withdrawal (ctx: Context<ZoWithdrawal>, amount: u64) -> Result<()> {
-        zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context(), false ,amount)?;
+    pub fn zo_withdrawal (ctx: Context<ZoWithdrawal>, allow_borrow: bool, amount: u64) -> Result<()> {
+        zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context(), allow_borrow ,amount)?;
         Ok(())
     }
     
