@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount, Token, Transfer};
 use zo::{self, ZO_DEX_PID, program::ZoAbi as Zo, State, Margin, Control, Cache, cpi::accounts::{CreateMargin, Deposit, Withdraw as ZoWithdraw, CreatePerpOpenOrders, PlacePerpOrder, CancelPerpOrder, CancelAllPerpOrders} };
@@ -158,6 +160,7 @@ pub struct ZoDeposit<'info> {
     #[account(mut)]
     pub cache: AccountLoader<'info, Cache>,
     
+    // #[account(mut)]
     #[account(mut, constraint = token_account.owner == *authority.to_account_info().key)]
     pub token_account: Account<'info, TokenAccount>,
     
@@ -188,8 +191,9 @@ impl <'info> ZoDeposit <'info> {
 #[derive(Accounts)]
 #[instruction(amount: u64)]
 pub struct ZoWithdrawal<'info> {
+    ///CHECK: pda signer
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub authority: UncheckedAccount<'info>,
     
     #[account(mut)]
     pub zo_program_state: AccountLoader<'info, State>,
@@ -535,8 +539,6 @@ pub struct DepositToVault<'info> {
     )]
     pub vault: Account<'info, Vault>,
     
-    // pub pda_account: AccountInfo<'info>,    
-
     pub token_program: Program<'info, Token>,
 }
 
@@ -607,9 +609,10 @@ pub struct CreateVault <'info> {
     pub vault: Account<'info, Vault>,
     
     
+    #[account(constraint = vault_token_acct.mint == Vault::zo_devnet_usdc_mint())]
     pub vault_token_acct: Account<'info, TokenAccount>,
     
-    #[account(constraint = depositor_token_acct.mint == vault_token_acct.mint)]
+    #[account(constraint = depositor_token_acct.mint == Vault::zo_devnet_usdc_mint())]
     pub depositor_token_acct: Account<'info, TokenAccount>,
     
     // pub mint: Account<'info, Mint>,
@@ -643,6 +646,10 @@ impl Vault {
     
     pub fn sub_from_vault (&mut self, amount: u64) -> u64 {
         self.vault_amount.checked_sub(amount).unwrap()
+    }
+
+    pub fn zo_devnet_usdc_mint () -> Pubkey {
+        Pubkey::from_str("7UT1javY6X1M9R2UrPGrwcZ78SX3huaXyETff5hm5YdX").unwrap()
     }
 }
 

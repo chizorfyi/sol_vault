@@ -3,7 +3,7 @@
     "@project-serum/anchor": "^0.21.0",
     "@solana/buffer-layout": "^4.0.0",
     "@solana/spl-token": "^0.2.0",
-    "@zero_one/client": "^0.8.5",
+    "@zero_one/client": "^0.8.6",
     "dotenv": "^16.0.0"
   },
   "devDependencies": {
