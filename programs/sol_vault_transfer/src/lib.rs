@@ -35,23 +35,31 @@ pub mod sol_vault_transfer {
     }
     
     pub fn create_zo_perp_order (ctx: Context<CreateZoPerpOpenOrders>) -> Result<()> {
-        zo::cpi::create_perp_open_orders(ctx.accounts.into_create_zo_perp_order_context())?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];  
+        zo::cpi::create_perp_open_orders(ctx.accounts.into_create_zo_perp_order_context().with_signer(&[&seed_signature[..]]))?;
         Ok(())
     }
     
     
     pub fn place_zo_perp_order (ctx: Context<PlaceZoPerpOrder>, is_long: bool, limit_price: u64, max_base_quantity:u64, max_quote_quantity:u64, order_type: ZoOrderType, limit: u16, client_id: u64) -> Result<()> {
-        zo::cpi::place_perp_order(ctx.accounts.into_place_zo_perp_order_context(), is_long, limit_price, max_base_quantity, max_quote_quantity, order_type.into(), limit, client_id)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];  
+        zo::cpi::place_perp_order(ctx.accounts.into_place_zo_perp_order_context().with_signer(&[&seed_signature[..]]), is_long, limit_price, max_base_quantity, max_quote_quantity, order_type.into(), limit, client_id)?;
         Ok(())
     }
     
     pub fn cancel_zo_perp_order (ctx: Context<CancelZoPerpOrder>, order_id: Option<u128>, is_long: Option<bool>, client_id: Option<u64>) -> Result<()> {
-        zo::cpi::cancel_perp_order(ctx.accounts.into_cancel_zo_perp_order_context(), order_id, is_long, client_id)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];  
+        zo::cpi::cancel_perp_order(ctx.accounts.into_cancel_zo_perp_order_context().with_signer(&[&seed_signature[..]]), order_id, is_long, client_id)?;
         Ok(())
     }
     
     pub fn cancel_all_zo_perp_order (ctx: Context<CancelAllZoPerpOrders>, limit: u16) -> Result<()> {
-        zo::cpi::cancel_all_perp_orders(ctx.accounts.into_cancel_all_zo_perp_orders_context() , limit)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];  
+        zo::cpi::cancel_all_perp_orders(ctx.accounts.into_cancel_all_zo_perp_orders_context().with_signer(&[&seed_signature[..]]) , limit)?;
         Ok(())
     }
 
@@ -250,8 +258,9 @@ pub struct CreateZoPerpOpenOrders<'info> {
     #[account(mut)]
     pub state_signer: UncheckedAccount<'info>,
     
+    ///CHECK: unchecked
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub authority: UncheckedAccount<'info>,
     
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -315,7 +324,8 @@ pub struct PlaceZoPerpOrder<'info> {
     ///CHECK: unchecked
     pub cache: AccountInfo<'info>,
     
-    pub authority: Signer<'info>,
+    ///CHECK: unchecked
+    pub authority: UncheckedAccount<'info>,
     
     ///CHECK: unchecked
     #[account(mut)]
@@ -391,7 +401,9 @@ pub struct CancelZoPerpOrder<'info> {
     #[account(mut)]
     pub cache: AccountLoader<'info, Cache>,
     
-    pub authority: Signer<'info>,
+
+    ///CHECK: unchecked
+    pub authority: UncheckedAccount<'info>,
     
     #[account(mut)]
     pub margin: AccountLoader<'info, Margin>,
@@ -450,7 +462,8 @@ impl <'info> CancelZoPerpOrder <'info> {
 #[derive(Accounts)]
 pub struct CancelAllZoPerpOrders<'info> {
     
-    pub authority: Signer<'info>,
+    ///CHECK: unchecked
+    pub authority: UncheckedAccount<'info>,
     
     pub state: AccountLoader<'info, State>,
     
