@@ -69,98 +69,98 @@ describe("sol_vault_transfer", () => {
 
   const zoProgram = createProgram(provider, Cluster.Devnet);
 
-  // it("deposits to vault", async () => {
-  //   // Add your test here.
+  it("deposits to vault", async () => {
+    // Add your test here.
 
-  //   // const provider2 = new anchor.Provider(
-  //   //   new anchor.web3.Connection("https://api.devnet.solana.com"),
-  //   //   // @ts-ignore
-  //   //   new anchor.Wallet(depositor2),
-  //   //   {
-  //   //     preflightCommitment: "confirmed",
-  //   //     commitment: "confirmed",
-  //   //   }
-  //   // );
+    // const provider2 = new anchor.Provider(
+    //   new anchor.web3.Connection("https://api.devnet.solana.com"),
+    //   // @ts-ignore
+    //   new anchor.Wallet(depositor2),
+    //   {
+    //     preflightCommitment: "confirmed",
+    //     commitment: "confirmed",
+    //   }
+    // );
 
-  //   const [merPda, merNonce] = await PublicKey.findProgramAddress(
-  //     [Buffer.from("msvault")],
-  //     program.programId
-  //   );
+    const [merPda, merNonce] = await PublicKey.findProgramAddress(
+      [Buffer.from("msvault")],
+      program.programId
+    );
 
-  //   const depUsdc = await getOrCreateAssociatedTokenAccount(
-  //     provider.connection,
-  //     depositor,
-  //     usdcMint,
-  //     depositor.publicKey
-  //   );
+    const depUsdc = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      depositor,
+      usdcMint,
+      depositor.publicKey
+    );
 
-  //   const [vaultkey] = await PublicKey.findProgramAddress(
-  //     [depositor.publicKey.toBuffer(), Buffer.from("vault")],
-  //     program.programId
-  //   );
+    const [vaultkey] = await PublicKey.findProgramAddress(
+      [depositor.publicKey.toBuffer(), Buffer.from("vault")],
+      program.programId
+    );
 
-  //   // const msUsdc = await createTokenAccount(provider, usdcMint, merPda);
+    // const msUsdc = await createTokenAccount(provider, usdcMint, merPda);
 
-  //   // const msUsdc = new PublicKey(
-  //   //   "BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV"
-  //   // );
+    // const msUsdc = new PublicKey(
+    //   "BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV"
+    // );
 
-  //   const vInfo = provider.connection.getAccountInfo(vaultkey);
+    const vInfo = provider.connection.getAccountInfo(vaultkey);
 
-  //   if (!vInfo) {
-  //     /// Create Vault
+    if (!vInfo) {
+      /// Create Vault
 
-  //     const tx1 = await program.rpc.createVault({
-  //       accounts: {
-  //         depositor: depositor.publicKey,
-  //         vault: vaultkey,
-  //         depositorTokenAcct: depUsdc.address,
-  //         vaultTokenAcct: msUsdc,
-  //         systemProgram: SystemProgram.programId,
-  //       },
-  //     });
+      const tx1 = await program.rpc.createVault({
+        accounts: {
+          depositor: depositor.publicKey,
+          vault: vaultkey,
+          depositorTokenAcct: depUsdc.address,
+          vaultTokenAcct: msUsdc,
+          systemProgram: SystemProgram.programId,
+        },
+      });
 
-  //     const vault_info = await program.account.vault.fetch(vaultkey);
-  //     console.log("vault info:", vault_info.vaultTokenAccount.toBase58());
+      const vault_info = await program.account.vault.fetch(vaultkey);
+      console.log("vault info:", vault_info.vaultTokenAccount.toBase58());
 
-  //     console.log("==================================");
-  //     console.log("tx1:", tx1);
-  //   }
+      console.log("==================================");
+      console.log("tx1:", tx1);
+    }
 
-  //   /// Deposit to Vault
-  //   const tx2 = await program.rpc.depositToVault(new anchor.BN("100000000"), {
-  //     accounts: {
-  //       depositor: depositor.publicKey,
-  //       depositorTokenAcct: depUsdc.address,
-  //       vaultTokenAcct: msUsdc,
-  //       vault: vaultkey,
-  //       tokenProgram: TOKEN_PROGRAM_ID,
-  //     },
-  //     signers: [depositor],
-  //   });
+    /// Deposit to Vault
+    const tx2 = await program.rpc.depositToVault(new anchor.BN("100000000"), {
+      accounts: {
+        depositor: depositor.publicKey,
+        depositorTokenAcct: depUsdc.address,
+        vaultTokenAcct: msUsdc,
+        vault: vaultkey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      },
+      signers: [depositor],
+    });
 
-  //   console.log("===================================");
-  //   console.log("tx2:", tx2);
+    console.log("===================================");
+    console.log("tx2:", tx2);
 
-  //   // const msUsdcInfo2 = await getAccount(provider.connection, msUsdc);
+    // const msUsdcInfo2 = await getAccount(provider.connection, msUsdc);
 
-  //   const vault_info2 = await program.account.vault.fetch(vaultkey);
+    const vault_info2 = await program.account.vault.fetch(vaultkey);
 
-  //   const balance = await provider.connection.getTokenAccountBalance(
-  //     depUsdc.address
-  //   );
-  //   const msbalance = await provider.connection.getTokenAccountBalance(msUsdc);
+    const balance = await provider.connection.getTokenAccountBalance(
+      depUsdc.address
+    );
+    const msbalance = await provider.connection.getTokenAccountBalance(msUsdc);
 
-  //   console.log("vault token acct info after transfer:", msbalance);
-  //   console.log("depositor token acct info after transfer:", balance);
-  //   console.log(
-  //     "vault info after transfer:",
-  //     vault_info2.vaultAmount.toNumber()
-  //   );
+    console.log("vault token acct info after transfer:", msbalance);
+    console.log("depositor token acct info after transfer:", balance);
+    console.log(
+      "vault info after transfer:",
+      vault_info2.vaultAmount.toNumber()
+    );
 
-  //   // console.log("depositor pubkey:", depositor.publicKey.toBase58());
-  //   // console.log("depositor2 pubkey:", depositor2.publicKey.toBase58());
-  // });
+    // console.log("depositor pubkey:", depositor.publicKey.toBase58());
+    // console.log("depositor2 pubkey:", depositor2.publicKey.toBase58());
+  });
 
   it("withdraws from vault", async () => {
     /// Withdraw from Vault
