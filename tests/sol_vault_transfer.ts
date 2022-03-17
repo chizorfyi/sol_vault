@@ -481,4 +481,188 @@ describe("sol_vault_transfer", () => {
       fetchVaultBalanceAfter3.value.amount
     );
   });
+
+  // // Create Perp Open Orders
+  it("create perp open orders account", async () => {
+    const zoState = await State.load(zoProgram, ZO_DEVNET_STATE_KEY);
+    console.log("zo state key:", ZO_DEVNET_STATE_KEY.toBase58());
+
+    const [zoUsdcVault, vaultInfo] = zoState.getVaultCollateralByMint(usdcMint);
+
+    const [merPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("msvault")],
+      program.programId
+    );
+
+    const [marginKey] = await Margin.getMarginKey(zoState, merPda, zoProgram);
+    const depositorMargin = await Margin.load(
+      zoProgram,
+      zoState,
+      zoState.cache,
+      merPda
+    );
+    const depositorControl = await Control.load(
+      zoProgram,
+      depositorMargin.data.control
+    );
+
+    const btcPerpMarketKey = zoState.markets["BTC-PERP"].pubKey;
+
+    const [openOrdersAcctKey] = await PublicKey.findProgramAddress(
+      [depositorControl.pubkey.toBuffer(), btcPerpMarketKey.toBuffer()],
+      ZO_DEX_DEVNET_PROGRAM_ID
+    );
+
+    const ooInfo = provider.connection.getAccountInfo(openOrdersAcctKey);
+
+    if (!openOrdersAcctKey) {
+      const [ookey] = await depositorMargin.getOpenOrdersKeyBySymbol(
+        "BTC-PERP",
+        Cluster.Devnet
+      );
+
+      console.log("zo state signer:", zoState.signer.toBase58());
+
+      const tx10 = await program.rpc.createZoPerpOrder({
+        accounts: {
+          state: zoState.pubkey,
+          stateSigner: depositorMargin.state.signer,
+          payer: depositor.publicKey,
+          authority: merPda,
+          margin: depositorMargin.pubkey,
+          control: depositorControl.pubkey,
+          openOrders: ookey,
+          dexMarket: btcPerpMarketKey,
+          dexProgram: ZO_DEX_DEVNET_PROGRAM_ID,
+          rent: SYSVAR_RENT_PUBKEY,
+          systemProgram: SystemProgram.programId,
+          zoProgram: ZERO_ONE_DEVNET_PROGRAM_ID,
+        },
+        signers: [depositor],
+      });
+
+      console.log("tx10:", tx10);
+    } else {
+      console.log("Open orders account already created");
+    }
+  });
+
+  // //Places ZO Perp Order
+  it("places perp orders", async () => {
+    const zoState = await State.load(zoProgram, ZO_DEVNET_STATE_KEY);
+    console.log("zo state key:", ZO_DEVNET_STATE_KEY.toBase58());
+
+    const [zoUsdcVault, vaultInfo] = zoState.getVaultCollateralByMint(usdcMint);
+
+    const [merPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("msvault")],
+      program.programId
+    );
+
+    // const [marginKey] = await Margin.getMarginKey(zoState, merPda, zoProgram);
+    const depositorMargin = await Margin.load(
+      zoProgram,
+      zoState,
+      zoState.cache,
+      merPda
+    );
+    const depositorControl = await Control.load(
+      zoProgram,
+      depositorMargin.data.control
+    );
+
+    const btcPerpMarketKey = zoState.markets["BTC-PERP"].pubKey;
+
+    const [openOrdersAcct] = await PublicKey.findProgramAddress(
+      [depositorControl.pubkey.toBuffer(), btcPerpMarketKey.toBuffer()],
+      ZO_DEX_DEVNET_PROGRAM_ID
+    );
+
+    const [ookey] = await depositorMargin.getOpenOrdersKeyBySymbol(
+      "BTC-PERP",
+      Cluster.Devnet
+    );
+
+    console.log("ookey:", ookey.toBase58());
+    console.log("ookey:", openOrdersAcct.toBase58());
+
+    const theOpenOrders = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", theOpenOrders);
+
+    console.log("zo state signer:", zoState.signer.toBase58());
+
+    const OpenOrders = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", OpenOrders);
+    console.log("ookey:", ookey);
+
+    const btcPerpMarket = await zoState.getMarketBySymbol("BTC-PERP");
+
+    const ordertype: OrderType = { postOnly: {} };
+
+    const isLong = true;
+
+    const limitPriceBn = btcPerpMarket.priceNumberToLots(41000);
+
+    const maxBaseQtyBn = btcPerpMarket.baseSizeNumberToLots(100);
+
+    const takerFee =
+      btcPerpMarket.decoded.perpType.toNumber() === 1
+        ? ZO_FUTURE_TAKER_FEE
+        : btcPerpMarket.decoded.perpType.toNumber() === 2
+        ? ZO_OPTION_TAKER_FEE
+        : ZO_SQUARE_TAKER_FEE;
+    const feeMultiplier = isLong ? 1 + takerFee : 1 - takerFee;
+    const maxQuoteQtyBn = new anchor.BN(
+      Math.round(
+        limitPriceBn
+          .mul(maxBaseQtyBn)
+          .mul(btcPerpMarket.decoded["quoteLotSize"])
+          .toNumber() * feeMultiplier
+      )
+    );
+
+    const tx11 = await program.rpc.placeZoPerpOrder(
+      isLong,
+      limitPriceBn,
+      maxBaseQtyBn,
+      maxQuoteQtyBn,
+      ordertype,
+      10,
+      new anchor.BN("0"),
+      {
+        accounts: {
+          state: depositorMargin.state.pubkey,
+          stateSigner: depositorMargin.state.signer,
+          authority: merPda,
+          cache: depositorMargin.state.cache.pubkey,
+          control: depositorControl.pubkey,
+          eventQ: btcPerpMarket.eventQueueAddress,
+          reqQ: btcPerpMarket.requestQueueAddress,
+          margin: depositorMargin.pubkey,
+          marketAsks: btcPerpMarket.asksAddress,
+          marketBids: btcPerpMarket.bidsAddress,
+          openOrders: ookey,
+          rent: SYSVAR_RENT_PUBKEY,
+          dexMarket: btcPerpMarketKey,
+          dexProgram: ZO_DEX_DEVNET_PROGRAM_ID,
+          zoProgram: ZERO_ONE_DEVNET_PROGRAM_ID,
+        },
+      }
+    );
+
+    console.log("======================================");
+    console.log("tx11:", tx11);
+
+    const theOpenOrders2 = await depositorMargin.getOpenOrdersInfoBySymbol(
+      "BTC-PERP"
+    );
+
+    console.log("open orders info:", theOpenOrders2);
+  });
 });
