@@ -25,7 +25,10 @@ pub mod sol_vault_transfer {
     }
     
     pub fn zo_withdrawal (ctx: Context<ZoWithdrawal>, allow_borrow: bool, amount: u64) -> Result<()> {
-        zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context(), allow_borrow ,amount)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];  
+        zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context().with_signer(&[&seed_signature[..]]), allow_borrow ,amount)?;
+        // zo::cpi::withdraw(ctx.accounts.into_zo_withdrawal_context(), allow_borrow ,amount)?;
         Ok(())
     }
     
