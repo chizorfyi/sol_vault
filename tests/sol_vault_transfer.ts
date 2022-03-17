@@ -82,10 +82,11 @@ describe("sol_vault_transfer", () => {
     //   }
     // );
 
-    const [merPda, merNonce] = await PublicKey.findProgramAddress(
-      [Buffer.from("msvault")],
-      program.programId
-    );
+    // const [merPda, merNonce] = await PublicKey.findProgramAddress(
+    //   [Buffer.from("msvault")],
+    //   program.programId
+    // );
+    // const msUsdc = await createTokenAccount(provider, usdcMint, merPda);
 
     const depUsdc = await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -98,12 +99,6 @@ describe("sol_vault_transfer", () => {
       [depositor.publicKey.toBuffer(), Buffer.from("vault")],
       program.programId
     );
-
-    // const msUsdc = await createTokenAccount(provider, usdcMint, merPda);
-
-    // const msUsdc = new PublicKey(
-    //   "BJ2ebUEyz4diV1HFm2PZdupJnfvkNZdgnxMQVMfojYcV"
-    // );
 
     const vInfo = provider.connection.getAccountInfo(vaultkey);
 
@@ -265,7 +260,7 @@ describe("sol_vault_transfer", () => {
         signers: [control, depositor],
       });
 
-      console.log("tx two:", tx);
+      console.log("tx:", tx);
     }
   });
 
@@ -330,7 +325,7 @@ describe("sol_vault_transfer", () => {
       fetchVaultBalanceBefore.value.amount
     );
 
-    const tx3 = await program.rpc.zoDeposit(false, depositAmount, {
+    const tx = await program.rpc.zoDeposit(false, depositAmount, {
       accounts: {
         authority: merPda,
         zoProgramState: zoState.pubkey,
@@ -344,15 +339,9 @@ describe("sol_vault_transfer", () => {
       },
       // signers: [depositor3],
     });
-    //  await ts.program.provider.connection.confirmTransaction(tx, "finalized");
-
-    const tx2 = await program.provider.connection.confirmTransaction(
-      tx3,
-      "finalized"
-    );
 
     console.log("=======================================");
-    console.log("tx2:", tx2);
+    console.log("tx:", tx);
 
     const fetchBalanceAfter2 =
       await program.provider.connection.getTokenAccountBalance(msUsdc);
@@ -435,7 +424,7 @@ describe("sol_vault_transfer", () => {
       fetchVaultBalanceBefore.value.amount
     );
 
-    const tx3 = await program.rpc.zoWithdrawal(false, withdrawAmount, {
+    const tx = await program.rpc.zoWithdrawal(false, withdrawAmount, {
       accounts: {
         authority: merPda,
         zoProgramState: zoState.pubkey,
@@ -450,15 +439,9 @@ describe("sol_vault_transfer", () => {
       },
       // signers: [depositor3],
     });
-    //  await ts.program.provider.connection.confirmTransaction(tx, "finalized");
-
-    const tx2 = await program.provider.connection.confirmTransaction(
-      tx3,
-      "finalized"
-    );
 
     console.log("=======================================");
-    console.log("tx2:", tx2);
+    console.log("tx:", tx);
 
     const fetchBalanceAfter2 =
       await program.provider.connection.getTokenAccountBalance(msUsdc);
@@ -523,7 +506,7 @@ describe("sol_vault_transfer", () => {
 
       console.log("zo state signer:", zoState.signer.toBase58());
 
-      const tx10 = await program.rpc.createZoPerpOrder({
+      const tx = await program.rpc.createZoPerpOrder({
         accounts: {
           state: zoState.pubkey,
           stateSigner: depositorMargin.state.signer,
@@ -541,7 +524,7 @@ describe("sol_vault_transfer", () => {
         signers: [depositor],
       });
 
-      console.log("tx10:", tx10);
+      console.log("tx10:", tx);
     } else {
       console.log("Open orders account already created");
     }
@@ -627,7 +610,7 @@ describe("sol_vault_transfer", () => {
       )
     );
 
-    const tx11 = await program.rpc.placeZoPerpOrder(
+    const tx = await program.rpc.placeZoPerpOrder(
       isLong,
       limitPriceBn,
       maxBaseQtyBn,
@@ -657,7 +640,7 @@ describe("sol_vault_transfer", () => {
     );
 
     console.log("======================================");
-    console.log("tx11:", tx11);
+    console.log("tx11:", tx);
 
     const theOpenOrders2 = await depositorMargin.getOpenOrdersInfoBySymbol(
       "BTC-PERP"
