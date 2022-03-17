@@ -106,10 +106,8 @@ pub struct CreateZoMargin<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     
-    ///CHECK: uninitialized
     #[account(mut)]
-    pub zo_program_state: AccountInfo<'info>,
-    // pub zo_program_state: AccountLoader<'info, State>,
+    pub zo_program_state: AccountLoader<'info, State>,
     
     ///CHECK: uninitialized
     #[account(mut)]
@@ -121,13 +119,9 @@ pub struct CreateZoMargin<'info> {
     #[account(zero)]
     pub control: UncheckedAccount<'info>,
     
-    ///CHECK: uninitialized
-    pub rent: AccountInfo<'info>,
-    // pub rent: Sysvar<'info, Rent>,
+    pub rent: Sysvar<'info, Rent>,
     
-    ///CHECK: uninitialized
-    pub system_program: AccountInfo<'info>,
-    // pub system_program: Program<'info, System>,
+    pub system_program: Program<'info, System>,
 }
 
 impl <'info> CreateZoMargin <'info> {
