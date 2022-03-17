@@ -9,12 +9,18 @@ pub mod sol_vault_transfer {
     use super::*;
     
     pub fn create_zo_margin (ctx: Context<CreateZoMargin>, zo_margin_nonce: u8) -> Result<()> {     
-        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;        
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+        zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context().with_signer(&[&seed_signature[..]]), zo_margin_nonce)?;           
+        // zo::cpi::create_margin(ctx.accounts.into_create_zo_margin_context(), zo_margin_nonce)?;  
         Ok(())       
     }
     
     pub fn zo_deposit (ctx: Context<ZoDeposit>, repay_only:bool, amount: u64) -> Result<()> {    
-        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), repay_only , amount)?;
+        let (_, bump) = Pubkey::find_program_address(&[b"msvault".as_ref()], ctx.program_id);        
+        let seed_signature = &[&b"msvault".as_ref()[..], &[bump]];        
+        zo::cpi::deposit(ctx.accounts.into_zo_deposit_context().with_signer(&[&seed_signature[..]]), repay_only , amount)?;
+        // zo::cpi::deposit(ctx.accounts.into_zo_deposit_context(), repay_only , amount)?;
         Ok(())
     }
     
@@ -132,11 +138,9 @@ impl <'info> CreateZoMargin <'info> {
 #[instruction(amount: u64)]
 pub struct ZoDeposit<'info> {
     
+    ///CHECK: pda signer
     #[account(mut)]
-    pub authority: Signer<'info>,
-
-    #[account(mut)]
-    pub payer: Signer<'info>,
+    pub authority: UncheckedAccount<'info>,
     
     pub zo_program_state: AccountLoader<'info, State>,
     
